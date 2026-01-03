@@ -1,4 +1,4 @@
-projectname?=go-template
+projectname?=rsshub-gateway
 
 default: help
 

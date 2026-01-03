@@ -1,0 +1,61 @@
+server:
+  listen: ":8080"
+  timeout_ms: 8000
+
+gateway_auth:
+  enabled: true
+  access_key: "ILoveRSSHub"
+  accept_key: true
+  accept_code: true
+
+metrics:
+  enabled: true
+  path: "/metrics"
+  accesskey: "PROM_KEY_123"
+
+routing:
+  default_group: "public"
+
+failover:
+  retry:
+    enabled: true
+    max_retries: 1
+  passive_eject:
+    enabled: true
+    fail_threshold: 3
+    base_eject_ms: 10000
+    max_eject_ms: 60000
+
+groups:
+  - name: "public"
+    priority: 10
+    allow: ["/qdaily/", "/bilibili/", "/"]
+    deny: []
+    lb:
+      policy: "wrr"
+    fallback_groups: ["backup"]
+    health:
+      active:
+        enabled: true
+        path: "/healthz"
+        interval_ms: 30000
+        timeout_ms: 10000
+        retries: 3
+    upstreams:
+      - url: "http://rsshub-1:1200"
+        weight: 3
+        access_key: "UP1KEY"
+      - url: "http://rsshub-2:1200"
+        weight: 2
+        access_key: "UP2KEY"
+
+  - name: "backup"
+    priority: 1
+    allow: ["/"]
+    deny: []
+    lb:
+      policy: "hash"
+    upstreams:
+      - url: "http://rsshub-b1:1200"
+        weight: 1
+        access_key: "B1KEY"
