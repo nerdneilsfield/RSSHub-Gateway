@@ -1,6 +1,5 @@
 version: 2
 env:
-  - GO111MODULE=on
   - CGO_ENABLED=0
 
 # before:
@@ -10,7 +9,11 @@ env:
 
 builds:
   -
+    id: rsshub-gateway
     binary: rsshub-gateway
+    flags:
+      - -trimpath
+    mod_timestamp: "{{ .CommitTimestamp }}"
     ldflags:
       - -s -w
       - -X main.version={{ .Version }}
@@ -26,18 +29,6 @@ builds:
       - amd64
       - arm64
     overrides:
-      - goos: darwin
-        goarch: amd64
-        ldflags:
-          - -s -w
-        env:
-          - CGO_ENABLED=0
-      - goos: darwin
-        goarch: arm64
-        ldflags:
-          - -s -w
-        env:
-          - CGO_ENABLED=0
       - goos: linux
         ldflags:
           - -s -w -extldflags "-static"
@@ -53,73 +44,40 @@ archives:
     format_overrides:
       - goos: windows
         format: zip
-    # files:
-    #   - "config.example.yaml"
+    files:
+      - "config.example.yaml"
 
 release:
   github:
     owner: nerdneilsfield
     name: RSSHub-Gateway
 
-# dockers:
-# - image_templates:
-#   - 'nerdneils/rsshub-gateway:{{ .Tag }}-amd64'
-#   - 'ghcr.io/nerdneilsfield/rsshub-gateway:{{ .Tag }}-amd64'
-#   dockerfile: Dockerfile
-#   use: buildx
-#   build_flag_templates:
-#   - "--pull"
-#   - "--label=io.artifacthub.package.readme-url=https://raw.githubusercontent.com/nerdneilsfield/RSSHub-Gateway/master/README.md"
-#   - "--label=io.artifacthub.package.maintainers=[{\"name\":\"dengqqi\",\"email\":\"dengqqi935@gmail.com\"}]"
-#   - "--label=io.artifacthub.package.license=MIT"
-#   - "--label=org.opencontainers.image.description=Gateway for multi-instance RSSHub deployments."
-#   - "--label=org.opencontainers.image.created={{.Date}}"
-#   - "--label=org.opencontainers.image.name={{.ProjectName}}"
-#   - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-#   - "--label=org.opencontainers.image.version={{.Version}}"
-#   - "--label=org.opencontainers.image.source={{.GitURL}}"
-#   - "--platform=linux/amd64"
-#   extra_files:
-#       - "config.example.yaml"
-# - image_templates:
-#   - 'nerdneils/rsshub-gateway:{{ .Tag }}-arm64'
-#   - 'ghcr.io/nerdneilsfield/rsshub-gateway:{{ .Tag }}-arm64'
-#   dockerfile:  Dockerfile
-#   use: buildx
-#   build_flag_templates:
-#   - "--pull"
-#   - "--label=io.artifacthub.package.readme-url=https://raw.githubusercontent.com/nerdneilsfield/RSSHub-Gateway/master/README.md"
-#   # - "--label=io.artifacthub.package.logo-url=https://raw.githubusercontent.com/nerdneilsfield/ghproxy-go/master/www/static/images/logo.png"
-#   - "--label=io.artifacthub.package.maintainers=[{\"name\":\"dengqqi\",\"email\":\"dengqqi935@gmail.com\"}]"
-#   - "--label=io.artifacthub.package.license=MIT"
-#   - "--label=org.opencontainers.image.description=Gateway for multi-instance RSSHub deployments."
-#   - "--label=org.opencontainers.image.created={{.Date}}"
-#   - "--label=org.opencontainers.image.name={{.ProjectName}}"
-#   - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-#   - "--label=org.opencontainers.image.version={{.Version}}"
-#   - "--label=org.opencontainers.image.source={{.GitURL}}"
-#   - "--platform=linux/arm64"
-#   goarch: arm64
-#   extra_files:
-#       - "config.example.yaml"
-
-# docker_manifests:
-# - name_template: 'nerdneils/rsshub-gateway:{{ .Tag }}'
-#   image_templates:
-#   - 'nerdneils/rsshub-gateway:{{ .Tag }}-amd64'
-#   - 'nerdneils/rsshub-gateway:{{ .Tag }}-arm64'
-# - name_template: 'ghcr.io/nerdneilsfield/rsshub-gateway:{{ .Tag }}'
-#   image_templates:
-#   - 'ghcr.io/nerdneilsfield/rsshub-gateway:{{ .Tag }}-amd64'
-#   - 'ghcr.io/nerdneilsfield/rsshub-gateway:{{ .Tag }}-arm64'
-# - name_template: 'nerdneils/rsshub-gateway:latest'
-#   image_templates:
-#   - 'nerdneils/rsshub-gateway:{{ .Tag }}-amd64'
-#   - 'nerdneils/rsshub-gateway:{{ .Tag }}-arm64'
-# - name_template: 'ghcr.io/nerdneilsfield/rsshub-gateway:latest'
-#   image_templates:
-#   - 'ghcr.io/nerdneilsfield/rsshub-gateway:{{ .Tag }}-amd64'
-#   - 'ghcr.io/nerdneilsfield/rsshub-gateway:{{ .Tag }}-arm64'
+dockers_v2:
+  - id: rsshub-gateway
+    dockerfile: Dockerfile
+    ids:
+      - rsshub-gateway
+    images:
+      - nerdneils/rsshub-gateway
+      - ghcr.io/nerdneilsfield/rsshub-gateway
+    tags:
+      - "{{ .Tag }}"
+      - "{{ if not .IsNightly }}latest{{ end }}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    extra_files:
+      - "config.example.yaml"
+    labels:
+      "io.artifacthub.package.readme-url": "https://raw.githubusercontent.com/nerdneilsfield/RSSHub-Gateway/master/README.md"
+      "io.artifacthub.package.maintainers": "[{\"name\":\"dengqqi\",\"email\":\"dengqqi935@gmail.com\"}]"
+      "io.artifacthub.package.license": "MIT"
+      "org.opencontainers.image.description": "Gateway for multi-instance RSSHub and Upvote RSS deployments."
+      "org.opencontainers.image.created": "{{ .Date }}"
+      "org.opencontainers.image.name": "{{ .ProjectName }}"
+      "org.opencontainers.image.revision": "{{ .FullCommit }}"
+      "org.opencontainers.image.version": "{{ .Version }}"
+      "org.opencontainers.image.source": "{{ .GitURL }}"
 
 checksum:
   name_template: "checksums.txt"
