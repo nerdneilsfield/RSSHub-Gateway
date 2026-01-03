@@ -1,21 +1,22 @@
 # RSSHub-Gateway
 
-A simple, production-ready gateway for multi-instance RSSHub deployments. It provides
-routing by prefix, per-group load balancing, health checks and failover, metrics,
-pprof, and hot reload. The goal is to keep RSSHub compatibility while making operations safer.
+A simple, production-ready gateway for multi-instance RSSHub deployments, plus Upvote RSS.
+It provides routing by prefix, per-group load balancing, health checks and failover,
+metrics, pprof, and hot reload. The goal is to keep RSSHub compatibility while making operations safer.
 
 - Language: Go
 - Transport: Fiber + fasthttp
-- Auth: gateway key/code + upstream code injection
+- Auth: gateway key/code + upstream code injection (RSSHub)
 - Observability: Prometheus + pprof + JSON logs
 
 [中文说明](README_zh.md)
 
 ## Features
+- Multi-backend routing: `/rsshub/` for RSSHub, `/upvote/` for Upvote RSS
 - Route by prefix with allow/deny rules and longest-prefix selection
 - Load balancing per group: smooth WRR or hash(path)
 - Gateway auth: `?key=` or `?code=md5(path+key)`
-- Upstream auth injection: remove client key/code, inject upstream code
+- Upstream auth injection: remove client key/code, inject upstream code for RSSHub only
 - Active health checks + passive eject + retry + fallback
 - Prometheus metrics with access key
 - Pprof endpoints with access key
@@ -44,13 +45,13 @@ sequenceDiagram
     participant LB as Load Balancer
     participant U as Upstream
 
-    C->>G: Request /path?key=...
+    C->>G: Request /rsshub/path?key=...
     G->>G: Validate key/code
     G->>R: Select group by prefix
     R-->>G: Group name
     G->>LB: Pick upstream
     LB-->>G: Upstream
-    G->>G: Remove key/code, inject upstream code
+    G->>G: Remove key/code, inject upstream code (rsshub)
     G->>U: Proxy request
     U-->>G: Response
     G-->>C: Response
@@ -95,8 +96,10 @@ The full schema lives in `config.example.yaml`.
 
 - `routing.default_group` must match a group name.
 - Prefix rules use `allow`/`deny` with leading `/`; deny overrides allow.
+- `backend` must be `rsshub` or `upvote` (defaults to `rsshub`).
+- `strip_prefix` removes service prefixes like `/rsshub` or `/upvote` before proxying.
 - `gateway_auth` needs `access_key` and at least one of `accept_key`/`accept_code`.
-- Upstream `access_key` is required for code injection and healthcheck `?key=`.
+- Upstream `access_key` is required for RSSHub code injection and healthcheck `?key=`.
 - Health check uses `path`, `interval_ms`, `timeout_ms`, `retries`.
 - `failover.passive_eject` requires `base_eject_ms <= max_eject_ms`.
 - Metrics require `metrics.accesskey` when enabled.
@@ -128,7 +131,7 @@ pprof:
   accesskey: "PPROF_KEY_123"
 
 routing:
-  default_group: "public"
+  default_group: "rsshub-public"
 
 failover:
   retry:
@@ -141,13 +144,15 @@ failover:
     max_eject_ms: 60000
 
 groups:
-  - name: "public"
+  - name: "rsshub-public"
+    backend: "rsshub"
+    strip_prefix: "/rsshub"
     priority: 10
-    allow: ["/qdaily/", "/bilibili/", "/"]
+    allow: ["/rsshub/"]
     deny: []
     lb:
       policy: "wrr"
-    fallback_groups: ["backup"]
+    fallback_groups: ["rsshub-backup"]
     health:
       active:
         enabled: true
@@ -163,9 +168,11 @@ groups:
         weight: 2
         access_key: "UP2KEY"
 
-  - name: "backup"
+  - name: "rsshub-backup"
+    backend: "rsshub"
+    strip_prefix: "/rsshub"
     priority: 1
-    allow: ["/"]
+    allow: ["/rsshub/"]
     deny: []
     lb:
       policy: "hash"
@@ -173,6 +180,18 @@ groups:
       - url: "http://rsshub-b1:1200"
         weight: 1
         access_key: "B1KEY"
+
+  - name: "upvote"
+    backend: "upvote"
+    strip_prefix: "/upvote"
+    priority: 5
+    allow: ["/upvote/"]
+    deny: []
+    lb:
+      policy: "wrr"
+    upstreams:
+      - url: "http://upvote-rss:80"
+        weight: 1
 ```
 </details>
 
@@ -181,19 +200,21 @@ groups:
 Gateway access supports both key and code styles:
 
 ```text
-http://127.0.0.1:8080/latepost/4?key=ACCESS_KEY
-http://127.0.0.1:8080/latepost/4?code=md5(path+ACCESS_KEY)
+http://127.0.0.1:8080/rsshub/latepost/4?key=ACCESS_KEY
+http://127.0.0.1:8080/rsshub/latepost/4?code=md5(path+ACCESS_KEY)
+http://127.0.0.1:8080/upvote/?platform=reddit&key=ACCESS_KEY
 ```
 
 Upstream injection rules:
 - Remove client `key` and `code`
-- Inject `code=md5(path+upstream_access_key)`
+- Inject `code=md5(path+upstream_access_key)` for RSSHub only
 
 ## Routing and Load Balancing
 
 - Match allow/deny by prefix, deny overrides allow
 - Choose longest prefix, then higher priority, then config order
 - Use `wrr` or `hash` per group
+- Strip service prefix (like `/rsshub` or `/upvote`) before proxying when configured
 
 ## Health Checks
 

@@ -85,6 +85,8 @@ func (p *Proxy) Serve(c *fiber.Ctx) error {
 			fallbackChain = append(fallbackChain, name)
 		}
 
+		upstreamPath := rewritePath(path, group.StripPrefix)
+		injectCode := group.Backend != "upvote"
 		attempts := 1
 		if rt.Failover.Retry.Enabled && (method == fiber.MethodGet || method == fiber.MethodHead) {
 			if rt.Failover.Retry.MaxRetries > 0 {
@@ -93,7 +95,7 @@ func (p *Proxy) Serve(c *fiber.Ctx) error {
 		}
 		avoid := map[*upstream.State]struct{}{}
 		for attempt := 0; attempt < attempts; attempt++ {
-			up := group.Picker.Pick(path, time.Now(), avoid)
+			up := group.Picker.Pick(upstreamPath, time.Now(), avoid)
 			if up == nil {
 				break
 			}
@@ -103,7 +105,7 @@ func (p *Proxy) Serve(c *fiber.Ctx) error {
 					p.metrics.RetryTotal.WithLabelValues(group.Name).Inc()
 				}
 			}
-			resp, errType, err := p.forward(c, rt, group.Name, up, path)
+			resp, errType, err := p.forward(c, rt, group.Name, up, upstreamPath, injectCode)
 			status = resp.status
 			lastErrType = errType
 			lastErr = err
@@ -144,15 +146,15 @@ type responseData struct {
 	body    []byte
 }
 
-func (p *Proxy) forward(c *fiber.Ctx, rt *runtime.Runtime, groupName string, up *upstream.State, path string) (responseData, string, error) {
+func (p *Proxy) forward(c *fiber.Ctx, rt *runtime.Runtime, groupName string, up *upstream.State, upstreamPath string, injectCode bool) (responseData, string, error) {
 	var resp responseData
 	req := fasthttp.AcquireRequest()
 	res := fasthttp.AcquireResponse()
 	defer fasthttp.ReleaseRequest(req)
 	defer fasthttp.ReleaseResponse(res)
 
-	args := auth.InjectUpstreamCode(c.Context().QueryArgs(), path, up.AccessKey)
-	uri := up.URL.String() + path
+	args := auth.RewriteUpstreamQuery(c.Context().QueryArgs(), upstreamPath, up.AccessKey, injectCode)
+	uri := up.URL.String() + upstreamPath
 	if args.Len() > 0 {
 		uri += "?" + args.String()
 	}
@@ -274,6 +276,23 @@ func statusFromError(errType string) int {
 		return http.StatusGatewayTimeout
 	}
 	return http.StatusBadGateway
+}
+
+func rewritePath(path string, stripPrefix string) string {
+	if stripPrefix == "" {
+		return path
+	}
+	if !strings.HasPrefix(path, stripPrefix) {
+		return path
+	}
+	trimmed := strings.TrimPrefix(path, stripPrefix)
+	if trimmed == "" {
+		return "/"
+	}
+	if !strings.HasPrefix(trimmed, "/") {
+		return "/" + trimmed
+	}
+	return trimmed
 }
 
 func buildChain(groupName string, rt *runtime.Runtime) []string {

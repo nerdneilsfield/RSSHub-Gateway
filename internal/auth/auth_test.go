@@ -28,18 +28,36 @@ func TestValidateGatewayCode(t *testing.T) {
 	}
 }
 
-func TestInjectUpstreamCode(t *testing.T) {
+func TestRewriteUpstreamQueryInjectCode(t *testing.T) {
 	args := fasthttp.Args{}
 	args.Set("key", "BAD")
 	args.Set("code", "BAD")
 	args.Set("foo", "bar")
 
-	out := InjectUpstreamCode(&args, "/abc", "UPKEY")
+	out := RewriteUpstreamQuery(&args, "/abc", "UPKEY", true)
 	if string(out.Peek("key")) != "" {
 		t.Fatalf("expected key removed")
 	}
 	if string(out.Peek("code")) == "" {
 		t.Fatalf("expected code injected")
+	}
+	if string(out.Peek("foo")) != "bar" {
+		t.Fatalf("expected foo preserved")
+	}
+}
+
+func TestRewriteUpstreamQueryNoCode(t *testing.T) {
+	args := fasthttp.Args{}
+	args.Set("key", "BAD")
+	args.Set("code", "BAD")
+	args.Set("foo", "bar")
+
+	out := RewriteUpstreamQuery(&args, "/abc", "", false)
+	if string(out.Peek("key")) != "" {
+		t.Fatalf("expected key removed")
+	}
+	if string(out.Peek("code")) != "" {
+		t.Fatalf("expected code not injected")
 	}
 	if string(out.Peek("foo")) != "bar" {
 		t.Fatalf("expected foo preserved")

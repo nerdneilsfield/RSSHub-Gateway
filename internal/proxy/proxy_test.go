@@ -109,6 +109,167 @@ groups:
 	}
 }
 
+func TestProxyStripPrefixRSSHub(t *testing.T) {
+	upKey := "UPKEY"
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/qdaily/column/59" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		if r.URL.Query().Get("key") != "" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		expected := md5Hex(r.URL.Path + upKey)
+		if r.URL.Query().Get("code") != expected {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer up.Close()
+
+	cfg := `server:
+  listen: ":0"
+  timeout_ms: 200
+
+gateway_auth:
+  enabled: false
+
+metrics:
+  enabled: false
+
+routing:
+  default_group: "rsshub"
+
+failover:
+  retry:
+    enabled: false
+    max_retries: 1
+  passive_eject:
+    enabled: false
+    fail_threshold: 3
+    base_eject_ms: 10000
+    max_eject_ms: 60000
+
+groups:
+  - name: "rsshub"
+    backend: "rsshub"
+    strip_prefix: "/rsshub"
+    priority: 10
+    allow: ["/rsshub/"]
+    deny: []
+    lb:
+      policy: "wrr"
+    health:
+      active:
+        enabled: false
+    upstreams:
+      - url: "` + up.URL + `"
+        weight: 1
+        access_key: "` + upKey + `"
+`
+	path := writeTempConfig(t, cfg)
+
+	m := metrics.New()
+	mgr, err := runtime.NewManager(path, m, zap.NewNop())
+	if err != nil {
+		t.Fatalf("manager init: %v", err)
+	}
+
+	app := fiber.New()
+	app.All("/*", New(mgr, m, zap.NewNop()).Serve)
+
+	req := httptest.NewRequest(http.MethodGet, "http://localhost/rsshub/qdaily/column/59?key=BAD", nil)
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app test: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, string(body))
+	}
+}
+
+func TestProxyUpvotePassthrough(t *testing.T) {
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		if r.URL.Query().Get("key") != "" || r.URL.Query().Get("code") != "" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		if r.URL.Query().Get("platform") != "reddit" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer up.Close()
+
+	cfg := `server:
+  listen: ":0"
+  timeout_ms: 200
+
+gateway_auth:
+  enabled: false
+
+metrics:
+  enabled: false
+
+routing:
+  default_group: "upvote"
+
+failover:
+  retry:
+    enabled: false
+    max_retries: 1
+  passive_eject:
+    enabled: false
+    fail_threshold: 3
+    base_eject_ms: 10000
+    max_eject_ms: 60000
+
+groups:
+  - name: "upvote"
+    backend: "upvote"
+    strip_prefix: "/upvote"
+    priority: 10
+    allow: ["/upvote/"]
+    deny: []
+    lb:
+      policy: "wrr"
+    health:
+      active:
+        enabled: false
+    upstreams:
+      - url: "` + up.URL + `"
+        weight: 1
+`
+	path := writeTempConfig(t, cfg)
+
+	m := metrics.New()
+	mgr, err := runtime.NewManager(path, m, zap.NewNop())
+	if err != nil {
+		t.Fatalf("manager init: %v", err)
+	}
+
+	app := fiber.New()
+	app.All("/*", New(mgr, m, zap.NewNop()).Serve)
+
+	req := httptest.NewRequest(http.MethodGet, "http://localhost/upvote/?platform=reddit&key=BAD&code=BAD", nil)
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app test: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, string(body))
+	}
+}
+
 func TestMetricsAccessKey(t *testing.T) {
 	cfg := `server:
   listen: ":0"

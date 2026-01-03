@@ -66,6 +66,8 @@ type PassiveEjectConfig struct {
 
 type GroupConfig struct {
 	Name           string           `yaml:"name"`
+	Backend        string           `yaml:"backend"`
+	StripPrefix    string           `yaml:"strip_prefix"`
 	Priority       int              `yaml:"priority"`
 	Allow          []string         `yaml:"allow"`
 	Deny           []string         `yaml:"deny"`
@@ -144,6 +146,9 @@ func (c *Config) applyDefaults() {
 		c.Failover.PassiveEject.MaxEjectMS = 60000
 	}
 	for gi := range c.Groups {
+		if c.Groups[gi].Backend == "" {
+			c.Groups[gi].Backend = "rsshub"
+		}
 		if c.Groups[gi].LB.Policy == "" {
 			c.Groups[gi].LB.Policy = "wrr"
 		}
@@ -171,6 +176,14 @@ func (c *Config) normalize() {
 	c.Metrics.Path = strings.TrimSpace(c.Metrics.Path)
 	c.Pprof.Path = strings.TrimSpace(c.Pprof.Path)
 	for gi := range c.Groups {
+		c.Groups[gi].Backend = strings.ToLower(strings.TrimSpace(c.Groups[gi].Backend))
+		if c.Groups[gi].Backend == "" {
+			c.Groups[gi].Backend = "rsshub"
+		}
+		c.Groups[gi].StripPrefix = strings.TrimSpace(c.Groups[gi].StripPrefix)
+		if c.Groups[gi].StripPrefix != "" && !strings.HasPrefix(c.Groups[gi].StripPrefix, "/") {
+			c.Groups[gi].StripPrefix = "/" + c.Groups[gi].StripPrefix
+		}
 		c.Groups[gi].Allow = normalizePrefixes(c.Groups[gi].Allow)
 		c.Groups[gi].Deny = normalizePrefixes(c.Groups[gi].Deny)
 	}
@@ -231,6 +244,14 @@ func (c *Config) validate() error {
 		if g.Name == "" {
 			return fmt.Errorf("group name is required")
 		}
+		switch g.Backend {
+		case "rsshub", "upvote":
+		default:
+			return fmt.Errorf("group %s has invalid backend: %s", g.Name, g.Backend)
+		}
+		if g.StripPrefix != "" && !strings.HasPrefix(g.StripPrefix, "/") {
+			return fmt.Errorf("group %s strip_prefix must start with /", g.Name)
+		}
 		if _, exists := groups[g.Name]; exists {
 			return fmt.Errorf("duplicate group name: %s", g.Name)
 		}
@@ -262,7 +283,7 @@ func (c *Config) validate() error {
 			if up.Weight <= 0 {
 				return fmt.Errorf("group %s upstream weight must be > 0", g.Name)
 			}
-			if up.AccessKey == "" {
+			if g.Backend == "rsshub" && up.AccessKey == "" {
 				return fmt.Errorf("group %s upstream access_key is required", g.Name)
 			}
 		}

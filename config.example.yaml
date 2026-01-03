@@ -55,7 +55,7 @@ pprof:
 routing:
   # EN: default group name
   # 中文: 默认分组名
-  default_group: "public"
+  default_group: "rsshub-public"
 
 # EN: failover policies
 # 中文: 故障转移策略
@@ -99,13 +99,19 @@ failover:
 # - access_key 用于 code 注入与健康检查的 ?key=
 
 groups:
-  - name: "public"
+  - name: "rsshub-public"
+    # EN: backend type (rsshub or upvote)
+    # 中文: 后端类型（rsshub 或 upvote）
+    backend: "rsshub"
+    # EN: strip prefix before proxying (optional)
+    # 中文: 转发前剥离前缀（可选）
+    strip_prefix: "/rsshub"
     # EN: higher priority wins when prefix length ties
     # 中文: 前缀长度相同则优先级更高者胜
     priority: 10
     # EN: allow prefixes
     # 中文: 允许前缀
-    allow: ["/qdaily/", "/bilibili/", "/"]
+    allow: ["/rsshub/"]
     # EN: deny prefixes
     # 中文: 拒绝前缀
     deny: []
@@ -115,7 +121,7 @@ groups:
       policy: "wrr"
     # EN: fallback groups
     # 中文: 回退分组
-    fallback_groups: ["backup"]
+    fallback_groups: ["rsshub-backup"]
     health:
       active:
         # EN: enable active healthcheck
@@ -145,9 +151,11 @@ groups:
         weight: 2
         access_key: "UP2KEY"
 
-  - name: "backup"
+  - name: "rsshub-backup"
+    backend: "rsshub"
+    strip_prefix: "/rsshub"
     priority: 1
-    allow: ["/"]
+    allow: ["/rsshub/"]
     deny: []
     lb:
       policy: "hash"
@@ -155,3 +163,21 @@ groups:
       - url: "http://rsshub-b1:1200"
         weight: 1
         access_key: "B1KEY"
+
+  - name: "upvote"
+    # EN: backend type (rsshub or upvote)
+    # 中文: 后端类型（rsshub 或 upvote）
+    backend: "upvote"
+    # EN: strip prefix before proxying (optional)
+    # 中文: 转发前剥离前缀（可选）
+    strip_prefix: "/upvote"
+    priority: 5
+    allow: ["/upvote/"]
+    deny: []
+    lb:
+      policy: "wrr"
+    upstreams:
+      - url: "http://upvote-rss:80"
+        weight: 1
+        # EN: access_key is optional for upvote
+        # 中文: upvote 后端 access_key 可省略

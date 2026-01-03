@@ -1,20 +1,21 @@
 # RSSHub-Gateway
 
-面向 RSSHub 多实例部署的轻量网关。保持 RSSHub 路由兼容，同时提供路由分组、
-负载均衡、健康检查、可观测性与热更新，便于稳定上线与运维。
+面向 RSSHub 多实例部署的轻量网关，并支持 Upvote RSS。保持 RSSHub 路由兼容，
+同时提供路由分组、负载均衡、健康检查、可观测性与热更新，便于稳定上线与运维。
 
 - 语言：Go
 - 网络：Fiber + fasthttp
-- 鉴权：网关 key/code + 上游 code 注入
+- 鉴权：网关 key/code + 上游 code 注入（仅 RSSHub）
 - 可观测：Prometheus + pprof + JSON 日志
 
 [English README](README.md)
 
 ## 功能亮点
+- 多后端路由：`/rsshub/` -> RSSHub，`/upvote/` -> Upvote RSS
 - 路由分组：按前缀 allow/deny，最长前缀优先
 - 组内负载均衡：平滑加权轮询（WRR）或 hash(path)
 - 网关鉴权：`?key=` 或 `?code=md5(path+key)`
-- 上游注入：剥离客户端 key/code，注入 upstream code
+- 上游注入：剥离客户端 key/code，仅 RSSHub 注入 upstream code
 - 健康检查 + 被动剔除 + 重试 + fallback
 - Prometheus 指标（accesskey 保护）
 - pprof 调试端点（accesskey 保护）
@@ -43,13 +44,13 @@ sequenceDiagram
     participant LB as Load Balancer
     participant U as Upstream
 
-    C->>G: 请求 /path?key=...
+    C->>G: 请求 /rsshub/path?key=...
     G->>G: 校验 key/code
     G->>R: 前缀选组
     R-->>G: 组名
     G->>LB: 选 upstream
     LB-->>G: upstream
-    G->>G: 删除 key/code，注入 upstream code
+    G->>G: 删除 key/code，注入 upstream code（rsshub）
     G->>U: 代理转发
     U-->>G: 响应
     G-->>C: 返回
@@ -94,8 +95,10 @@ docker run --rm -p 8080:8080 \
 
 - `routing.default_group` 必须存在于 groups 中。
 - allow/deny 使用前缀匹配，deny 优先，前缀需包含 `/`。
+- `backend` 只能是 `rsshub` 或 `upvote`（默认 `rsshub`）。
+- `strip_prefix` 用于转发前剥离服务前缀（如 `/rsshub`、`/upvote`）。
 - `gateway_auth` 需要 `access_key`，且 `accept_key`/`accept_code` 至少开一个。
-- upstream `access_key` 用于 code 注入和健康检查 `?key=`。
+- upstream `access_key` 仅 RSSHub 用于 code 注入和健康检查 `?key=`。
 - 健康检查使用 `path`、`interval_ms`、`timeout_ms`、`retries`。
 - `failover.passive_eject` 要求 `base_eject_ms <= max_eject_ms`。
 - 启用 metrics 时需要配置 `metrics.accesskey`。
@@ -127,7 +130,7 @@ pprof:
   accesskey: "PPROF_KEY_123"
 
 routing:
-  default_group: "public"
+  default_group: "rsshub-public"
 
 failover:
   retry:
@@ -140,13 +143,15 @@ failover:
     max_eject_ms: 60000
 
 groups:
-  - name: "public"
+  - name: "rsshub-public"
+    backend: "rsshub"
+    strip_prefix: "/rsshub"
     priority: 10
-    allow: ["/qdaily/", "/bilibili/", "/"]
+    allow: ["/rsshub/"]
     deny: []
     lb:
       policy: "wrr"
-    fallback_groups: ["backup"]
+    fallback_groups: ["rsshub-backup"]
     health:
       active:
         enabled: true
@@ -162,9 +167,11 @@ groups:
         weight: 2
         access_key: "UP2KEY"
 
-  - name: "backup"
+  - name: "rsshub-backup"
+    backend: "rsshub"
+    strip_prefix: "/rsshub"
     priority: 1
-    allow: ["/"]
+    allow: ["/rsshub/"]
     deny: []
     lb:
       policy: "hash"
@@ -172,6 +179,18 @@ groups:
       - url: "http://rsshub-b1:1200"
         weight: 1
         access_key: "B1KEY"
+
+  - name: "upvote"
+    backend: "upvote"
+    strip_prefix: "/upvote"
+    priority: 5
+    allow: ["/upvote/"]
+    deny: []
+    lb:
+      policy: "wrr"
+    upstreams:
+      - url: "http://upvote-rss:80"
+        weight: 1
 ```
 </details>
 
@@ -180,19 +199,21 @@ groups:
 网关支持两种访问方式：
 
 ```text
-http://127.0.0.1:8080/latepost/4?key=ACCESS_KEY
-http://127.0.0.1:8080/latepost/4?code=md5(path+ACCESS_KEY)
+http://127.0.0.1:8080/rsshub/latepost/4?key=ACCESS_KEY
+http://127.0.0.1:8080/rsshub/latepost/4?code=md5(path+ACCESS_KEY)
+http://127.0.0.1:8080/upvote/?platform=reddit&key=ACCESS_KEY
 ```
 
 上游注入规则：
 - 删除客户端 `key` 与 `code`
-- 注入 `code=md5(path+upstream_access_key)`
+- 仅 RSSHub 注入 `code=md5(path+upstream_access_key)`
 
 ## 路由与负载均衡
 
 - allow/deny 前缀匹配，deny 优先
 - 最长前缀优先，其次 priority，再按配置顺序
 - 每组 `wrr` 或 `hash` 二选一
+- 若配置 `strip_prefix`，转发前剥离服务前缀（如 `/rsshub` 或 `/upvote`）
 
 ## 健康检查
 

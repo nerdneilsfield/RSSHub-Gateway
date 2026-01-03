@@ -29,6 +29,8 @@ type Runtime struct {
 
 type GroupRuntime struct {
 	Name           string
+	Backend        string
+	StripPrefix    string
 	Priority       int
 	Allow          []string
 	Deny           []string
@@ -67,6 +69,8 @@ func Build(cfg *config.Config, m *metrics.Metrics, logger *zap.Logger) (*Runtime
 
 		gr := &GroupRuntime{
 			Name:           groupCfg.Name,
+			Backend:        groupCfg.Backend,
+			StripPrefix:    groupCfg.StripPrefix,
 			Priority:       groupCfg.Priority,
 			Allow:          groupCfg.Allow,
 			Deny:           groupCfg.Deny,

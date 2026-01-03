@@ -24,7 +24,7 @@ func ValidateGateway(cfg config.GatewayAuthConfig, path string, args *fasthttp.A
 	return false
 }
 
-func InjectUpstreamCode(args *fasthttp.Args, path string, upstreamKey string) *fasthttp.Args {
+func RewriteUpstreamQuery(args *fasthttp.Args, path string, upstreamKey string, injectCode bool) *fasthttp.Args {
 	var out fasthttp.Args
 	args.VisitAll(func(k, v []byte) {
 		key := string(k)
@@ -33,7 +33,9 @@ func InjectUpstreamCode(args *fasthttp.Args, path string, upstreamKey string) *f
 		}
 		out.AddBytesKV(k, v)
 	})
-	out.Set("code", md5Hex(path+upstreamKey))
+	if injectCode && upstreamKey != "" {
+		out.Set("code", md5Hex(path+upstreamKey))
+	}
 	return &out
 }
 
