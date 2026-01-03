@@ -177,6 +177,85 @@ groups:
 	}
 }
 
+func TestGatewayKeyAuth(t *testing.T) {
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer up.Close()
+
+	cfg := `server:
+  listen: ":0"
+  timeout_ms: 200
+
+gateway_auth:
+  enabled: true
+  access_key: "GATE"
+  accept_key: true
+  accept_code: false
+
+metrics:
+  enabled: false
+
+routing:
+  default_group: "public"
+
+failover:
+  retry:
+    enabled: false
+    max_retries: 1
+  passive_eject:
+    enabled: false
+    fail_threshold: 3
+    base_eject_ms: 10000
+    max_eject_ms: 60000
+
+groups:
+  - name: "public"
+    priority: 10
+    allow: ["/"]
+    deny: []
+    lb:
+      policy: "wrr"
+    health:
+      active:
+        enabled: false
+    upstreams:
+      - url: "` + up.URL + `"
+        weight: 1
+        access_key: "UP"
+`
+	path := writeTempConfig(t, cfg)
+
+	m := metrics.New()
+	mgr, err := runtime.NewManager(path, m, zap.NewNop())
+	if err != nil {
+		t.Fatalf("manager init: %v", err)
+	}
+
+	app := fiber.New()
+	app.All("/*", New(mgr, m, zap.NewNop()).Serve)
+
+	okReq := httptest.NewRequest(http.MethodGet, "http://localhost/path?key=GATE", nil)
+	okResp, err := app.Test(okReq)
+	if err != nil {
+		t.Fatalf("app test: %v", err)
+	}
+	if okResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(okResp.Body)
+		t.Fatalf("expected 200, got %d: %s", okResp.StatusCode, string(body))
+	}
+
+	badReq := httptest.NewRequest(http.MethodGet, "http://localhost/path?key=BAD", nil)
+	badResp, err := app.Test(badReq)
+	if err != nil {
+		t.Fatalf("app test: %v", err)
+	}
+	if badResp.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", badResp.StatusCode)
+	}
+}
+
 func TestProxyRetry(t *testing.T) {
 	slow := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(50 * time.Millisecond)

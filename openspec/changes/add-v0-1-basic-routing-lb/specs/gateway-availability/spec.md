@@ -10,6 +10,11 @@ upstream unhealthy; a successful probe SHALL restore healthy status.
 - **WHEN** three consecutive probes fail
 - **THEN** the upstream is marked unhealthy and excluded from selection
 
+#### Scenario: Health check includes access key
+- **GIVEN** an upstream configured with an access_key
+- **WHEN** the gateway probes `/healthz`
+- **THEN** the request includes `?key=<access_key>`
+
 ### Requirement: Passive eject on proxy failures
 The system SHALL track proxy failures (connection errors, timeouts, or 5xx) and
 eject an upstream after `fail_threshold` consecutive failures with exponential

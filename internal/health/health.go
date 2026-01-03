@@ -3,6 +3,7 @@ package health
 import (
 	"context"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/nerdneilsfield/RSSHub-Gateway/internal/config"
@@ -47,7 +48,7 @@ func probe(groupName string, up *upstream.State, path string, retries int, clien
 	defer fasthttp.ReleaseRequest(req)
 	defer fasthttp.ReleaseResponse(resp)
 
-	req.SetRequestURI(up.URL.String() + path)
+	req.SetRequestURI(buildHealthURL(up, path))
 	req.Header.SetMethod(fasthttp.MethodGet)
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -92,4 +93,22 @@ func IsTimeout(err error) bool {
 		return nerr.Timeout()
 	}
 	return false
+}
+
+func buildHealthURL(up *upstream.State, path string) string {
+	base := *up.URL
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	if base.Path != "" && base.Path != "/" {
+		base.Path = strings.TrimRight(base.Path, "/") + path
+	} else {
+		base.Path = path
+	}
+	q := base.Query()
+	if up.AccessKey != "" {
+		q.Set("key", up.AccessKey)
+	}
+	base.RawQuery = q.Encode()
+	return base.String()
 }
