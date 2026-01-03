@@ -89,6 +89,18 @@ docker run --rm -p 8080:8080 \
 完整配置见 `config.example.yaml`。
 
 <details>
+<summary>配置说明（折叠）</summary>
+
+- `routing.default_group` 必须存在于 groups 中。
+- allow/deny 使用前缀匹配，deny 优先，前缀需包含 `/`。
+- `gateway_auth` 需要 `access_key`，且 `accept_key`/`accept_code` 至少开一个。
+- upstream `access_key` 用于 code 注入和健康检查 `?key=`。
+- 健康检查使用 `path`、`interval_ms`、`timeout_ms`、`retries`。
+- `failover.passive_eject` 要求 `base_eject_ms <= max_eject_ms`。
+- 启用 metrics 时需要配置 `metrics.accesskey`。
+</details>
+
+<details>
 <summary>完整配置示例</summary>
 
 ```yaml

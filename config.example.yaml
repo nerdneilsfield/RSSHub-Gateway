@@ -1,49 +1,132 @@
+# EN: server settings
+# 中文: 服务设置
 server:
+  # EN: listen address
+  # 中文: 监听地址
   listen: ":8080"
+  # EN: request timeout in milliseconds
+  # 中文: 请求超时（毫秒）
   timeout_ms: 8000
 
+# EN: gateway authentication
+# 中文: 网关鉴权
 gateway_auth:
+  # EN: enable gateway auth
+  # 中文: 是否启用网关鉴权
   enabled: true
+  # EN: global access key
+  # 中文: 全局访问密钥
   access_key: "ILoveRSSHub"
+  # EN: accept ?key= style
+  # 中文: 支持 ?key= 方式
   accept_key: true
+  # EN: accept ?code=md5(path+key)
+  # 中文: 支持 ?code=md5(path+key)
   accept_code: true
 
+# EN: Prometheus metrics
+# 中文: Prometheus 指标
 metrics:
+  # EN: enable metrics
+  # 中文: 是否启用指标
   enabled: true
+  # EN: metrics path
+  # 中文: 指标路径
   path: "/metrics"
+  # EN: query key for metrics access
+  # 中文: 指标访问密钥（query）
   accesskey: "PROM_KEY_123"
 
+# EN: routing defaults
+# 中文: 路由默认配置
 routing:
+  # EN: default group name
+  # 中文: 默认分组名
   default_group: "public"
 
+# EN: failover policies
+# 中文: 故障转移策略
 failover:
+  # EN: retry policy (GET/HEAD only)
+  # 中文: 重试策略（仅 GET/HEAD）
   retry:
+    # EN: enable retry
+    # 中文: 是否启用重试
     enabled: true
+    # EN: max retries
+    # 中文: 最大重试次数
     max_retries: 1
+  # EN: passive eject policy
+  # 中文: 被动剔除策略
   passive_eject:
+    # EN: enable passive eject
+    # 中文: 是否启用被动剔除
     enabled: true
+    # EN: consecutive failures to eject
+    # 中文: 连续失败触发剔除
     fail_threshold: 3
+    # EN: base backoff in milliseconds
+    # 中文: 初始剔除时长（毫秒）
     base_eject_ms: 10000
+    # EN: max backoff in milliseconds
+    # 中文: 最大剔除时长（毫秒）
     max_eject_ms: 60000
+
+# EN: upstream groups
+# 中文: 上游分组
+# - allow/deny are prefix matches; deny overrides allow
+# - allow/deny 为前缀匹配；deny 优先
+# - use leading slash for prefixes
+# - 前缀必须包含前导 "/"
+# - group names must be unique
+# - 分组名必须唯一
+# - fallback_groups are tried in order
+# - fallback_groups 按顺序回退
+# - upstream access_key is used for code injection and healthcheck key
+# - access_key 用于 code 注入与健康检查的 ?key=
 
 groups:
   - name: "public"
+    # EN: higher priority wins when prefix length ties
+    # 中文: 前缀长度相同则优先级更高者胜
     priority: 10
+    # EN: allow prefixes
+    # 中文: 允许前缀
     allow: ["/qdaily/", "/bilibili/", "/"]
+    # EN: deny prefixes
+    # 中文: 拒绝前缀
     deny: []
     lb:
+      # EN: wrr or hash
+      # 中文: wrr 或 hash
       policy: "wrr"
+    # EN: fallback groups
+    # 中文: 回退分组
     fallback_groups: ["backup"]
     health:
       active:
+        # EN: enable active healthcheck
+        # 中文: 是否启用主动健康检查
         enabled: true
+        # EN: health path
+        # 中文: 健康检查路径
         path: "/healthz"
+        # EN: interval in milliseconds
+        # 中文: 间隔（毫秒）
         interval_ms: 30000
+        # EN: timeout in milliseconds
+        # 中文: 超时（毫秒）
         timeout_ms: 10000
+        # EN: consecutive failures to mark unhealthy
+        # 中文: 连续失败次数
         retries: 3
     upstreams:
       - url: "http://rsshub-1:1200"
+        # EN: load-balancing weight
+        # 中文: 负载均衡权重
         weight: 3
+        # EN: upstream access key
+        # 中文: 上游访问密钥
         access_key: "UP1KEY"
       - url: "http://rsshub-2:1200"
         weight: 2

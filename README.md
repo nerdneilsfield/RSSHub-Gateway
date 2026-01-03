@@ -90,6 +90,18 @@ docker run --rm -p 8080:8080 \
 The full schema lives in `config.example.yaml`.
 
 <details>
+<summary>How to write config (details)</summary>
+
+- `routing.default_group` must match a group name.
+- Prefix rules use `allow`/`deny` with leading `/`; deny overrides allow.
+- `gateway_auth` needs `access_key` and at least one of `accept_key`/`accept_code`.
+- Upstream `access_key` is required for code injection and healthcheck `?key=`.
+- Health check uses `path`, `interval_ms`, `timeout_ms`, `retries`.
+- `failover.passive_eject` requires `base_eject_ms <= max_eject_ms`.
+- Metrics require `metrics.accesskey` when enabled.
+</details>
+
+<details>
 <summary>Full config example</summary>
 
 ```yaml
