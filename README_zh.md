@@ -1,27 +1,26 @@
 # RSSHub-Gateway
 
-A simple, production-ready gateway for multi-instance RSSHub deployments. It provides
-routing by prefix, per-group load balancing, health checks and failover, metrics, and
-hot reload. The goal is to keep RSSHub compatibility while making operations safer.
+面向 RSSHub 多实例部署的轻量网关。保持 RSSHub 路由兼容，同时提供路由分组、
+负载均衡、健康检查、可观测性与热更新，便于稳定上线与运维。
 
-- Language: Go
-- Transport: Fiber + fasthttp
-- Auth: gateway key/code + upstream code injection
-- Observability: Prometheus + JSON logs
+- 语言：Go
+- 网络：Fiber + fasthttp
+- 鉴权：网关 key/code + 上游 code 注入
+- 可观测：Prometheus + JSON 日志
 
-[中文说明](README_zh.md)
+[English README](README.md)
 
-## Features
-- Route by prefix with allow/deny rules and longest-prefix selection
-- Load balancing per group: smooth WRR or hash(path)
-- Gateway auth: `?key=` or `?code=md5(path+key)`
-- Upstream auth injection: remove client key/code, inject upstream code
-- Active health checks + passive eject + retry + fallback
-- Prometheus metrics with access key
-- JSON access and event logs
-- SIGHUP config reload with rollback on failure
+## 功能亮点
+- 路由分组：按前缀 allow/deny，最长前缀优先
+- 组内负载均衡：平滑加权轮询（WRR）或 hash(path)
+- 网关鉴权：`?key=` 或 `?code=md5(path+key)`
+- 上游注入：剥离客户端 key/code，注入 upstream code
+- 健康检查 + 被动剔除 + 重试 + fallback
+- Prometheus 指标（accesskey 保护）
+- JSON 结构化日志
+- SIGHUP 热加载（失败回滚）
 
-## Architecture
+## 架构示意
 
 ```mermaid
 flowchart LR
@@ -43,25 +42,25 @@ sequenceDiagram
     participant LB as Load Balancer
     participant U as Upstream
 
-    C->>G: Request /path?key=...
-    G->>G: Validate key/code
-    G->>R: Select group by prefix
-    R-->>G: Group name
-    G->>LB: Pick upstream
-    LB-->>G: Upstream
-    G->>G: Remove key/code, inject upstream code
-    G->>U: Proxy request
-    U-->>G: Response
-    G-->>C: Response
+    C->>G: 请求 /path?key=...
+    G->>G: 校验 key/code
+    G->>R: 前缀选组
+    R-->>G: 组名
+    G->>LB: 选 upstream
+    LB-->>G: upstream
+    G->>G: 删除 key/code，注入 upstream code
+    G->>U: 代理转发
+    U-->>G: 响应
+    G-->>C: 返回
 ```
 
-## Quickstart
+## 快速开始
 
 ```bash
-# build
+# 构建
 make build
 
-# run
+# 运行
 ./rsshub-gateway serve -c config.example.yaml
 ```
 
@@ -72,11 +71,11 @@ docker build -t rsshub-gateway:latest .
 docker run --rm -p 8080:8080 rsshub-gateway:latest
 ```
 
-Prebuilt images:
+预构建镜像：
 - `docker pull nerdneils/rsshub-gateway:latest`
 - `docker pull ghcr.io/nerdneilsfield/rsshub-gateway:latest`
 
-To use a custom config:
+自定义配置文件：
 
 ```bash
 docker run --rm -p 8080:8080 \
@@ -85,12 +84,12 @@ docker run --rm -p 8080:8080 \
   /app/rsshub-gateway serve -c /app/config.yaml
 ```
 
-## Configuration
+## 配置
 
-The full schema lives in `config.example.yaml`.
+完整配置见 `config.example.yaml`。
 
 <details>
-<summary>Full config example</summary>
+<summary>完整配置示例</summary>
 
 ```yaml
 server:
@@ -157,47 +156,47 @@ groups:
 ```
 </details>
 
-## Authentication
+## 鉴权
 
-Gateway access supports both key and code styles:
+网关支持两种访问方式：
 
 ```text
 http://127.0.0.1:8080/latepost/4?key=ACCESS_KEY
 http://127.0.0.1:8080/latepost/4?code=md5(path+ACCESS_KEY)
 ```
 
-Upstream injection rules:
-- Remove client `key` and `code`
-- Inject `code=md5(path+upstream_access_key)`
+上游注入规则：
+- 删除客户端 `key` 与 `code`
+- 注入 `code=md5(path+upstream_access_key)`
 
-## Routing and Load Balancing
+## 路由与负载均衡
 
-- Match allow/deny by prefix, deny overrides allow
-- Choose longest prefix, then higher priority, then config order
-- Use `wrr` or `hash` per group
+- allow/deny 前缀匹配，deny 优先
+- 最长前缀优先，其次 priority，再按配置顺序
+- 每组 `wrr` 或 `hash` 二选一
 
-## Health Checks
+## 健康检查
 
-Active health checks call `/healthz` on each upstream. If the upstream requires
-an `ACCESS_KEY`, the gateway automatically appends `?key=<upstream_access_key>`.
+主动健康检查请求 `/healthz`。当 RSSHub 设置 `ACCESS_KEY` 时，健康检查会
+自动追加 `?key=<upstream_access_key>`。
 
-If you use Docker Compose, update healthcheck like this:
+Docker Compose 建议：
 
 ```yaml
 healthcheck:
   test: ["CMD", "curl", "-f", "http://localhost:1200/healthz?key=${ACCESS_KEY}"]
 ```
 
-## Metrics
+## 指标
 
-Metrics endpoint (requires access key):
+访问方式（带 accesskey）：
 
 ```text
 GET /metrics?accesskey=<METRICS_ACCESS_KEY>
 ```
 
 <details>
-<summary>Metrics list</summary>
+<summary>指标列表</summary>
 
 - rsshub_gateway_requests_total{method,group,status}
 - rsshub_gateway_request_duration_seconds_bucket{group}
@@ -209,13 +208,12 @@ GET /metrics?accesskey=<METRICS_ACCESS_KEY>
 - rsshub_gateway_config_reload_total{result}
 </details>
 
-## Logging
+## 日志
 
-Access logs are JSON per request. Event logs include health changes, ejections,
-and reload outcomes.
+访问日志为 JSON，每请求一条；事件日志记录健康变更、剔除和重载等事件。
 
 <details>
-<summary>Suggested access log fields</summary>
+<summary>访问日志字段建议</summary>
 
 - ts
 - level
@@ -232,22 +230,20 @@ and reload outcomes.
 - err
 </details>
 
-## Reload
-
-Send SIGHUP to reload config without downtime:
+## 热加载
 
 ```bash
 kill -HUP <pid>
 ```
 
-## Development
+## 开发
 
 ```bash
 make test
 make cover
 ```
 
-## Release
+## 发布
 
 ```bash
 goreleaser release --snapshot --clean --skip-publish

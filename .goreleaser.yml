@@ -63,7 +63,7 @@ release:
 
 # dockers:
 # - image_templates:
-#   - 'nerdneilsfield/rsshub-gateway:{{ .Tag }}-amd64'
+#   - 'nerdneils/rsshub-gateway:{{ .Tag }}-amd64'
 #   - 'ghcr.io/nerdneilsfield/rsshub-gateway:{{ .Tag }}-amd64'
 #   dockerfile: Dockerfile
 #   use: buildx
@@ -82,7 +82,7 @@ release:
 #   extra_files:
 #       - "config.example.yaml"
 # - image_templates:
-#   - 'nerdneilsfield/rsshub-gateway:{{ .Tag }}-arm64'
+#   - 'nerdneils/rsshub-gateway:{{ .Tag }}-arm64'
 #   - 'ghcr.io/nerdneilsfield/rsshub-gateway:{{ .Tag }}-arm64'
 #   dockerfile:  Dockerfile
 #   use: buildx
@@ -104,18 +104,18 @@ release:
 #       - "config.example.yaml"
 
 # docker_manifests:
-# - name_template: 'nerdneilsfield/rsshub-gateway:{{ .Tag }}'
+# - name_template: 'nerdneils/rsshub-gateway:{{ .Tag }}'
 #   image_templates:
-#   - 'nerdneilsfield/rsshub-gateway:{{ .Tag }}-amd64'
-#   - 'nerdneilsfield/rsshub-gateway:{{ .Tag }}-arm64'
+#   - 'nerdneils/rsshub-gateway:{{ .Tag }}-amd64'
+#   - 'nerdneils/rsshub-gateway:{{ .Tag }}-arm64'
 # - name_template: 'ghcr.io/nerdneilsfield/rsshub-gateway:{{ .Tag }}'
 #   image_templates:
 #   - 'ghcr.io/nerdneilsfield/rsshub-gateway:{{ .Tag }}-amd64'
 #   - 'ghcr.io/nerdneilsfield/rsshub-gateway:{{ .Tag }}-arm64'
-# - name_template: 'nerdneilsfield/rsshub-gateway:latest'
+# - name_template: 'nerdneils/rsshub-gateway:latest'
 #   image_templates:
-#   - 'nerdneilsfield/rsshub-gateway:{{ .Tag }}-amd64'
-#   - 'nerdneilsfield/rsshub-gateway:{{ .Tag }}-arm64'
+#   - 'nerdneils/rsshub-gateway:{{ .Tag }}-amd64'
+#   - 'nerdneils/rsshub-gateway:{{ .Tag }}-arm64'
 # - name_template: 'ghcr.io/nerdneilsfield/rsshub-gateway:latest'
 #   image_templates:
 #   - 'ghcr.io/nerdneilsfield/rsshub-gateway:{{ .Tag }}-amd64'
