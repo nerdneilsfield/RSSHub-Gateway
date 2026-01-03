@@ -17,6 +17,9 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 
 <!-- OPENSPEC:END -->
 
+## Commit Messages
+- Use conventional prefixes: `feat:`, `chore:`, `docs:`
+
 ## Development Log
 - Log all development work to https://www.notion.so/nerdneils/rsshub-codex-2dd0f931dcb28062a4f5f93589adba55
 - Use an H2 heading with the current date and time for each entry
