@@ -13,6 +13,7 @@ import (
 	"github.com/nerdneilsfield/RSSHub-Gateway/internal/metrics"
 	pprofhandler "github.com/nerdneilsfield/RSSHub-Gateway/internal/pprof"
 	"github.com/nerdneilsfield/RSSHub-Gateway/internal/runtime"
+	"github.com/nerdneilsfield/RSSHub-Gateway/internal/short"
 	"github.com/nerdneilsfield/RSSHub-Gateway/internal/upstream"
 	"github.com/valyala/fasthttp"
 	"go.uber.org/zap"
@@ -51,6 +52,13 @@ func (p *Proxy) Serve(c *fiber.Ctx) error {
 	}
 	if rt.Pprof.Enabled && pprofhandler.MatchPath(path, rt.Pprof.Path) {
 		return pprofhandler.Handle(c, rt.Pprof.Path, rt.Pprof.AccessKey)
+	}
+	if location, matched, ok := short.Resolve(rt.Short, path, c.Context().QueryArgs().String()); matched {
+		if ok {
+			c.Location(location)
+			return c.SendStatus(http.StatusMovedPermanently)
+		}
+		return c.SendStatus(http.StatusNotFound)
 	}
 
 	args := c.Context().QueryArgs()

@@ -16,6 +16,7 @@
 - 组内负载均衡：平滑加权轮询（WRR）或 hash(path)
 - 网关鉴权：`?key=` 或 `?code=md5(path+key)`
 - 上游注入：剥离客户端 key/code，仅 RSSHub 注入 upstream code
+- 订阅缩写：`/short/{name}` 301 跳转并透传 query
 - 健康检查 + 被动剔除 + 重试 + fallback
 - Prometheus 指标（accesskey 保护）
 - pprof 调试端点（accesskey 保护）
@@ -103,6 +104,7 @@ docker run --rm -p 8080:8080 \
 - `failover.passive_eject` 要求 `base_eject_ms <= max_eject_ms`。
 - 启用 metrics 时需要配置 `metrics.accesskey`。
 - 启用 pprof 时需要配置 `pprof.accesskey`。
+- 启用 short 时 `short.path` 必须以 `/` 开头，且 name 唯一。
 </details>
 
 <details>
@@ -128,6 +130,15 @@ pprof:
   enabled: false
   path: "/debug/pprof"
   accesskey: "PPROF_KEY_123"
+
+short:
+  enabled: true
+  path: "/short"
+  entries:
+    - name: "latepost"
+      target: "/rsshub/latepost/4"
+    - name: "reddit-top"
+      target: "https://example.com/rss?platform=reddit"
 
 routing:
   default_group: "rsshub-public"
@@ -211,6 +222,18 @@ http://127.0.0.1:8080/upvote/?platform=reddit&key=ACCESS_KEY
 上游注入规则：
 - 删除客户端 `key` 与 `code`
 - 仅 RSSHub 注入 `code=md5(path+upstream_access_key)`
+
+## 订阅缩写
+
+short 入口返回 301 并将原始 query 追加到目标 URL。
+
+```text
+GET /short/latepost?key=ACCESS_KEY
+-> 301 Location: /rsshub/latepost/4?key=ACCESS_KEY
+
+GET /short/reddit-top?code=ABC
+-> 301 Location: https://example.com/rss?platform=reddit&code=ABC
+```
 
 ## 路由与负载均衡
 

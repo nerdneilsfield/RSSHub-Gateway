@@ -17,6 +17,7 @@ metrics, pprof, and hot reload. The goal is to keep RSSHub compatibility while m
 - Load balancing per group: smooth WRR or hash(path)
 - Gateway auth: `?key=` or `?code=md5(path+key)`
 - Upstream auth injection: remove client key/code, inject upstream code for RSSHub only
+- Short subscriptions: `/short/{name}` 301 redirect with query passthrough
 - Active health checks + passive eject + retry + fallback
 - Prometheus metrics with access key
 - Pprof endpoints with access key
@@ -104,6 +105,7 @@ The full schema lives in `config.example.yaml`.
 - `failover.passive_eject` requires `base_eject_ms <= max_eject_ms`.
 - Metrics require `metrics.accesskey` when enabled.
 - Pprof requires `pprof.accesskey` when enabled.
+- Short requires `short.path` (starts with `/`) and unique entry names when enabled.
 </details>
 
 <details>
@@ -129,6 +131,15 @@ pprof:
   enabled: false
   path: "/debug/pprof"
   accesskey: "PPROF_KEY_123"
+
+short:
+  enabled: true
+  path: "/short"
+  entries:
+    - name: "latepost"
+      target: "/rsshub/latepost/4"
+    - name: "reddit-top"
+      target: "https://example.com/rss?platform=reddit"
 
 routing:
   default_group: "rsshub-public"
@@ -208,6 +219,18 @@ http://127.0.0.1:8080/upvote/?platform=reddit&key=ACCESS_KEY
 Migration note (code auth):
 If you previously used `?code=` with `/latepost/...`, update the path to `/rsshub/latepost/...`
 and compute `md5("/rsshub/latepost/4"+ACCESS_KEY)`. Key-based access is unchanged.
+
+## Short Subscriptions
+
+Short entries return a 301 redirect and append the original query string to the target.
+
+```text
+GET /short/latepost?key=ACCESS_KEY
+-> 301 Location: /rsshub/latepost/4?key=ACCESS_KEY
+
+GET /short/reddit-top?code=ABC
+-> 301 Location: https://example.com/rss?platform=reddit&code=ABC
+```
 
 Upstream injection rules:
 - Remove client `key` and `code`

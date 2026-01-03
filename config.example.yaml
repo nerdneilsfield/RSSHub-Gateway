@@ -50,6 +50,23 @@ pprof:
   # 中文: pprof 访问密钥（query）
   accesskey: "PPROF_KEY_123"
 
+# EN: short subscription redirects
+# 中文: 订阅缩写跳转
+short:
+  # EN: enable short redirects
+  # 中文: 是否启用 short
+  enabled: false
+  # EN: short path prefix
+  # 中文: short 前缀路径
+  path: "/short"
+  # EN: short entries (301 redirect with query passthrough)
+  # 中文: short 入口（301 跳转并透传 query）
+  entries:
+    - name: "latepost"
+      target: "/rsshub/latepost/4"
+    - name: "reddit-top"
+      target: "https://example.com/rss?platform=reddit"
+
 # EN: routing defaults
 # 中文: 路由默认配置
 routing:

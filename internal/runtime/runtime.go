@@ -10,6 +10,7 @@ import (
 	"github.com/nerdneilsfield/RSSHub-Gateway/internal/lb"
 	"github.com/nerdneilsfield/RSSHub-Gateway/internal/metrics"
 	"github.com/nerdneilsfield/RSSHub-Gateway/internal/router"
+	"github.com/nerdneilsfield/RSSHub-Gateway/internal/short"
 	"github.com/nerdneilsfield/RSSHub-Gateway/internal/upstream"
 	"go.uber.org/zap"
 )
@@ -21,6 +22,7 @@ type Runtime struct {
 	Auth         config.GatewayAuthConfig
 	Metrics      config.MetricsConfig
 	Pprof        config.PprofConfig
+	Short        *short.Runtime
 	Failover     config.FailoverConfig
 	Server       config.ServerConfig
 
@@ -90,6 +92,11 @@ func Build(cfg *config.Config, m *metrics.Metrics, logger *zap.Logger) (*Runtime
 		})
 	}
 
+	shortEntries := make(map[string]string, len(cfg.Short.Entries))
+	for _, entry := range cfg.Short.Entries {
+		shortEntries[entry.Name] = entry.Target
+	}
+
 	rt := &Runtime{
 		Router:       router.New(routes, cfg.Routing.DefaultGroup),
 		Groups:       groups,
@@ -97,6 +104,7 @@ func Build(cfg *config.Config, m *metrics.Metrics, logger *zap.Logger) (*Runtime
 		Auth:         cfg.GatewayAuth,
 		Metrics:      cfg.Metrics,
 		Pprof:        cfg.Pprof,
+		Short:        short.NewRuntime(cfg.Short.Enabled, cfg.Short.Path, shortEntries),
 		Failover:     cfg.Failover,
 		Server:       cfg.Server,
 		stop:         make(chan struct{}),

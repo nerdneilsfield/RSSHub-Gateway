@@ -14,6 +14,7 @@ type Config struct {
 	GatewayAuth GatewayAuthConfig `yaml:"gateway_auth"`
 	Metrics     MetricsConfig     `yaml:"metrics"`
 	Pprof       PprofConfig       `yaml:"pprof"`
+	Short       ShortConfig       `yaml:"short"`
 	Routing     RoutingConfig     `yaml:"routing"`
 	Failover    FailoverConfig    `yaml:"failover"`
 	Groups      []GroupConfig     `yaml:"groups"`
@@ -41,6 +42,17 @@ type PprofConfig struct {
 	Enabled   bool   `yaml:"enabled"`
 	Path      string `yaml:"path"`
 	AccessKey string `yaml:"accesskey"`
+}
+
+type ShortConfig struct {
+	Enabled bool         `yaml:"enabled"`
+	Path    string       `yaml:"path"`
+	Entries []ShortEntry `yaml:"entries"`
+}
+
+type ShortEntry struct {
+	Name   string `yaml:"name"`
+	Target string `yaml:"target"`
 }
 
 type RoutingConfig struct {
@@ -129,6 +141,9 @@ func (c *Config) applyDefaults() {
 	if c.Pprof.Path == "" {
 		c.Pprof.Path = "/debug/pprof"
 	}
+	if c.Short.Path == "" {
+		c.Short.Path = "/short"
+	}
 	if c.GatewayAuth.Enabled && !c.GatewayAuth.AcceptKey && !c.GatewayAuth.AcceptCode {
 		c.GatewayAuth.AcceptKey = true
 		c.GatewayAuth.AcceptCode = true
@@ -175,6 +190,11 @@ func (c *Config) applyDefaults() {
 func (c *Config) normalize() {
 	c.Metrics.Path = strings.TrimSpace(c.Metrics.Path)
 	c.Pprof.Path = strings.TrimSpace(c.Pprof.Path)
+	c.Short.Path = normalizePathPrefix(c.Short.Path)
+	for i := range c.Short.Entries {
+		c.Short.Entries[i].Name = strings.TrimSpace(c.Short.Entries[i].Name)
+		c.Short.Entries[i].Target = strings.TrimSpace(c.Short.Entries[i].Target)
+	}
 	for gi := range c.Groups {
 		c.Groups[gi].Backend = strings.ToLower(strings.TrimSpace(c.Groups[gi].Backend))
 		if c.Groups[gi].Backend == "" {
@@ -187,6 +207,20 @@ func (c *Config) normalize() {
 		c.Groups[gi].Allow = normalizePrefixes(c.Groups[gi].Allow)
 		c.Groups[gi].Deny = normalizePrefixes(c.Groups[gi].Deny)
 	}
+}
+
+func normalizePathPrefix(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return value
+	}
+	if !strings.HasPrefix(value, "/") {
+		value = "/" + value
+	}
+	if value != "/" {
+		value = strings.TrimRight(value, "/")
+	}
+	return value
 }
 
 func normalizePrefixes(values []string) []string {
@@ -227,6 +261,24 @@ func (c *Config) validate() error {
 		}
 		if c.Pprof.Path == "" || !strings.HasPrefix(c.Pprof.Path, "/") {
 			return fmt.Errorf("pprof.path must start with /")
+		}
+	}
+	if c.Short.Enabled {
+		if c.Short.Path == "" || !strings.HasPrefix(c.Short.Path, "/") {
+			return fmt.Errorf("short.path must start with /")
+		}
+		names := make(map[string]struct{}, len(c.Short.Entries))
+		for _, entry := range c.Short.Entries {
+			if entry.Name == "" {
+				return fmt.Errorf("short entry name is required")
+			}
+			if _, exists := names[entry.Name]; exists {
+				return fmt.Errorf("short entry name must be unique: %s", entry.Name)
+			}
+			names[entry.Name] = struct{}{}
+			if !isShortTarget(entry.Target) {
+				return fmt.Errorf("short entry %s has invalid target: %s", entry.Name, entry.Target)
+			}
 		}
 	}
 	if c.Routing.DefaultGroup == "" {
@@ -302,4 +354,15 @@ func (c *Config) validate() error {
 		return fmt.Errorf("routing.default_group %s not found in groups", c.Routing.DefaultGroup)
 	}
 	return nil
+}
+
+func isShortTarget(target string) bool {
+	if target == "" {
+		return false
+	}
+	if strings.HasPrefix(target, "https://") {
+		return true
+	}
+	return target == "/rsshub" || strings.HasPrefix(target, "/rsshub/") ||
+		target == "/upvote" || strings.HasPrefix(target, "/upvote/")
 }
