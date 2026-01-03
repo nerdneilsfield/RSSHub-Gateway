@@ -7,6 +7,20 @@ go build -o rsshub-gateway ./...
 ./rsshub-gateway serve -c config.example.yaml
 ```
 
+## Docker
+```bash
+docker build -t rsshub-gateway:latest .
+docker run --rm -p 8080:8080 rsshub-gateway:latest
+```
+
+To use a custom config, mount a file and update the command:
+```bash
+docker run --rm -p 8080:8080 \
+  -v "$(pwd)/config.example.yaml:/app/config.yaml:ro" \
+  rsshub-gateway:latest \
+  /app/rsshub-gateway serve -c /app/config.yaml
+```
+
 ## Configuration
 See `config.example.yaml` for the full v0.1 schema.
 

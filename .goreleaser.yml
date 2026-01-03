@@ -10,7 +10,7 @@ env:
 
 builds:
   -
-    binary: go-template
+    binary: rsshub-gateway
     ldflags:
       - -s -w
       - -X main.version={{ .Version }}
@@ -49,30 +49,30 @@ builds:
 archives:
   -
     builds:
-      - go-template
+      - rsshub-gateway
     format_overrides:
       - goos: windows
         format: zip
     # files:
-    #   - "config_example.toml"
+    #   - "config.example.yaml"
 
 release:
   github:
     owner: nerdneilsfield
-    name: go-template
+    name: RSSHub-Gateway
 
 # dockers:
 # - image_templates:
-#   - 'nerdneils/go-template:{{ .Tag }}-amd64'
-#   - 'ghcr.io/nerdneilsfield/go-template:{{ .Tag }}-amd64'
+#   - 'nerdneilsfield/rsshub-gateway:{{ .Tag }}-amd64'
+#   - 'ghcr.io/nerdneilsfield/rsshub-gateway:{{ .Tag }}-amd64'
 #   dockerfile: Dockerfile
 #   use: buildx
 #   build_flag_templates:
 #   - "--pull"
-#   - "--label=io.artifacthub.package.readme-url=https://raw.githubusercontent.com/nerdneilsfield/go-template/master/README.md"
+#   - "--label=io.artifacthub.package.readme-url=https://raw.githubusercontent.com/nerdneilsfield/RSSHub-Gateway/master/README.md"
 #   - "--label=io.artifacthub.package.maintainers=[{\"name\":\"dengqqi\",\"email\":\"dengqqi935@gmail.com\"}]"
 #   - "--label=io.artifacthub.package.license=MIT"
-#   - "--label=org.opencontainers.image.description=A fast and flexible translation gateway that routes requests to various LLM endpoints with configurable rate limiting and model-specific prompts."
+#   - "--label=org.opencontainers.image.description=Gateway for multi-instance RSSHub deployments."
 #   - "--label=org.opencontainers.image.created={{.Date}}"
 #   - "--label=org.opencontainers.image.name={{.ProjectName}}"
 #   - "--label=org.opencontainers.image.revision={{.FullCommit}}"
@@ -80,19 +80,19 @@ release:
 #   - "--label=org.opencontainers.image.source={{.GitURL}}"
 #   - "--platform=linux/amd64"
 #   extra_files:
-#       - "config_example.toml"
+#       - "config.example.yaml"
 # - image_templates:
-#   - 'nerdneils/go-template:{{ .Tag }}-arm64'
-#   - 'ghcr.io/nerdneilsfield/go-template:{{ .Tag }}-arm64'
+#   - 'nerdneilsfield/rsshub-gateway:{{ .Tag }}-arm64'
+#   - 'ghcr.io/nerdneilsfield/rsshub-gateway:{{ .Tag }}-arm64'
 #   dockerfile:  Dockerfile
 #   use: buildx
 #   build_flag_templates:
 #   - "--pull"
-#   - "--label=io.artifacthub.package.readme-url=https://raw.githubusercontent.com/nerdneilsfield/go-template/master/README.md"
+#   - "--label=io.artifacthub.package.readme-url=https://raw.githubusercontent.com/nerdneilsfield/RSSHub-Gateway/master/README.md"
 #   # - "--label=io.artifacthub.package.logo-url=https://raw.githubusercontent.com/nerdneilsfield/ghproxy-go/master/www/static/images/logo.png"
 #   - "--label=io.artifacthub.package.maintainers=[{\"name\":\"dengqqi\",\"email\":\"dengqqi935@gmail.com\"}]"
 #   - "--label=io.artifacthub.package.license=MIT"
-#   - "--label=org.opencontainers.image.description=A fast and flexible translation gateway that routes requests to various LLM endpoints with configurable rate limiting and model-specific prompts."
+#   - "--label=org.opencontainers.image.description=Gateway for multi-instance RSSHub deployments."
 #   - "--label=org.opencontainers.image.created={{.Date}}"
 #   - "--label=org.opencontainers.image.name={{.ProjectName}}"
 #   - "--label=org.opencontainers.image.revision={{.FullCommit}}"
@@ -101,25 +101,25 @@ release:
 #   - "--platform=linux/arm64"
 #   goarch: arm64
 #   extra_files:
-#       - "config_example.toml"
+#       - "config.example.yaml"
 
 # docker_manifests:
-# - name_template: 'nerdneils/go-template:{{ .Tag }}'
+# - name_template: 'nerdneilsfield/rsshub-gateway:{{ .Tag }}'
 #   image_templates:
-#   - 'nerdneils/go-template:{{ .Tag }}-amd64'
-#   - 'nerdneils/go-template:{{ .Tag }}-arm64'
-# - name_template: 'ghcr.io/nerdneilsfield/go-template:{{ .Tag }}'
+#   - 'nerdneilsfield/rsshub-gateway:{{ .Tag }}-amd64'
+#   - 'nerdneilsfield/rsshub-gateway:{{ .Tag }}-arm64'
+# - name_template: 'ghcr.io/nerdneilsfield/rsshub-gateway:{{ .Tag }}'
 #   image_templates:
-#   - 'ghcr.io/nerdneilsfield/go-template:{{ .Tag }}-amd64'
-#   - 'ghcr.io/nerdneilsfield/go-template:{{ .Tag }}-arm64'
-# - name_template: 'nerdneils/go-template:latest'
+#   - 'ghcr.io/nerdneilsfield/rsshub-gateway:{{ .Tag }}-amd64'
+#   - 'ghcr.io/nerdneilsfield/rsshub-gateway:{{ .Tag }}-arm64'
+# - name_template: 'nerdneilsfield/rsshub-gateway:latest'
 #   image_templates:
-#   - 'nerdneils/go-template:{{ .Tag }}-amd64'
-#   - 'nerdneils/go-template:{{ .Tag }}-arm64'
-# - name_template: 'ghcr.io/nerdneilsfield/go-template:latest'
+#   - 'nerdneilsfield/rsshub-gateway:{{ .Tag }}-amd64'
+#   - 'nerdneilsfield/rsshub-gateway:{{ .Tag }}-arm64'
+# - name_template: 'ghcr.io/nerdneilsfield/rsshub-gateway:latest'
 #   image_templates:
-#   - 'ghcr.io/nerdneilsfield/go-template:{{ .Tag }}-amd64'
-#   - 'ghcr.io/nerdneilsfield/go-template:{{ .Tag }}-arm64'
+#   - 'ghcr.io/nerdneilsfield/rsshub-gateway:{{ .Tag }}-amd64'
+#   - 'ghcr.io/nerdneilsfield/rsshub-gateway:{{ .Tag }}-arm64'
 
 checksum:
   name_template: "checksums.txt"
@@ -147,7 +147,7 @@ changelog:
       regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
       order: 200
     - title: 'Documentation updates'
-      regexp: ^.*?doc(\([[:word:]]+\))??!?:.+$
+      regexp: ^.*?docs(\([[:word:]]+\))??!?:.+$
       order: 400
     - title: Other work
       order: 9999

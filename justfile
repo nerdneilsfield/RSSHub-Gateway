@@ -1,4 +1,8 @@
 projectname := "rsshub-gateway"
+version := `git describe --abbrev=0 --tags 2>/dev/null || echo dev`
+commit := `git rev-parse --short HEAD 2>/dev/null || echo unknown`
+build_time := `date -u +%Y-%m-%dT%H:%M:%SZ`
+ldflags := "-s -w -X main.version={{version}} -X main.buildTime={{build_time}} -X main.gitCommit={{commit}}"
 
 # 列出所有可用的命令
 default:
@@ -6,24 +10,23 @@ default:
 
 # 构建 Golang 二进制文件
 build:
-    go build -ldflags "-X main.version=$(git describe --abbrev=0 --tags)" -o {{projectname}}
+    go build -ldflags {{ldflags}} -o {{projectname}} ./
 
 # 安装 Golang 二进制文件
 install:
-    go install -ldflags "-X main.version=$(git describe --abbrev=0 --tags)"
+    go install -ldflags {{ldflags}}
 
 # 运行应用程序
 run:
-    go run -ldflags "-X main.version=$(git describe --abbrev=0 --tags)" main.go
+    go run -ldflags {{ldflags}} ./ serve -c config.example.yaml
 
 # 安装构建依赖
 bootstrap:
-    go generate -tags tools tools/tools.go
+    go mod download
 
 # 运行测试并显示覆盖率
-test: clean
-    go test --cover -parallel=1 -v -coverprofile=coverage.out ./...
-    go tool cover -func=coverage.out | sort -rnk3
+test:
+    go test ./...
 
 # 清理环境
 clean:
@@ -31,21 +34,20 @@ clean:
 
 # 显示测试覆盖率
 cover:
-    go test -v -race $(go list ./... | grep -v /vendor/) -v -coverprofile=coverage.out
+    go test -v -race -coverprofile=coverage.out ./...
     go tool cover -func=coverage.out
 
 # 格式化 Go 文件
 fmt:
-    gofumpt -w .
-    gci write .
+    gofmt -w .
 
 # 运行 linter
 lint:
-    golangci-lint run -c .golang-ci.yml
+    golangci-lint run -c .golangci.yml
 
 # 测试发布
 release-test:
-    goreleaser release  --snapshot --clean
+    goreleaser release --snapshot --clean --skip-publish
 
 # 运行 pre-commit 钩子（已注释）
 # pre-commit:
