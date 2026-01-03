@@ -10,6 +10,11 @@ Requests that fail auth SHALL return 403.
 - **WHEN** a request is made without key or code
 - **THEN** the gateway returns 403
 
+#### Scenario: Valid key auth
+- **GIVEN** gateway auth is enabled
+- **WHEN** a request is made with `?key=<ACCESS_KEY>`
+- **THEN** the gateway authorizes the request
+
 #### Scenario: Valid code auth
 - **GIVEN** gateway auth is enabled
 - **WHEN** a request is made with `?code=md5(path+ACCESS_KEY)`
