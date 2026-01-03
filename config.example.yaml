@@ -66,6 +66,10 @@ short:
       target: "/rsshub/latepost/4"
     - name: "reddit-top"
       target: "https://example.com/rss?platform=reddit"
+    - name: "cdt"
+      target: "https://chinadigitaltimes.net/chinese/feed"
+    - name: "fearnation"
+      target: "https://fearnation.club/rss/"
 
 # EN: routing defaults
 # 中文: 路由默认配置
