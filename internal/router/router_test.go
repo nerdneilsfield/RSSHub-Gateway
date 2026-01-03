@@ -9,8 +9,11 @@ func TestSelectLongestPrefix(t *testing.T) {
 	}, "default")
 
 	got := r.Select("/telegram/private/x")
-	if got != "b" {
-		t.Fatalf("expected b, got %s", got)
+	if got.Group != "b" {
+		t.Fatalf("expected b, got %s", got.Group)
+	}
+	if got.RoutePrefix != "/telegram/private/" {
+		t.Fatalf("expected route prefix /telegram/private/, got %s", got.RoutePrefix)
 	}
 }
 
@@ -21,8 +24,11 @@ func TestSelectDenyOverrides(t *testing.T) {
 	}, "default")
 
 	got := r.Select("/private/x")
-	if got != "b" {
-		t.Fatalf("expected b, got %s", got)
+	if got.Group != "b" {
+		t.Fatalf("expected b, got %s", got.Group)
+	}
+	if got.RoutePrefix != "/" {
+		t.Fatalf("expected route prefix /, got %s", got.RoutePrefix)
 	}
 }
 
@@ -33,8 +39,11 @@ func TestSelectPriority(t *testing.T) {
 	}, "default")
 
 	got := r.Select("/any")
-	if got != "b" {
-		t.Fatalf("expected b, got %s", got)
+	if got.Group != "b" {
+		t.Fatalf("expected b, got %s", got.Group)
+	}
+	if got.RoutePrefix != "/" {
+		t.Fatalf("expected route prefix /, got %s", got.RoutePrefix)
 	}
 }
 
@@ -44,7 +53,10 @@ func TestSelectDefault(t *testing.T) {
 	}, "default")
 
 	got := r.Select("/other")
-	if got != "default" {
-		t.Fatalf("expected default, got %s", got)
+	if got.Group != "default" {
+		t.Fatalf("expected default, got %s", got.Group)
+	}
+	if got.RoutePrefix != DefaultRoutePrefix {
+		t.Fatalf("expected default route prefix, got %s", got.RoutePrefix)
 	}
 }

@@ -13,6 +13,7 @@ type Config struct {
 	Server      ServerConfig      `yaml:"server"`
 	GatewayAuth GatewayAuthConfig `yaml:"gateway_auth"`
 	Metrics     MetricsConfig     `yaml:"metrics"`
+	Pprof       PprofConfig       `yaml:"pprof"`
 	Routing     RoutingConfig     `yaml:"routing"`
 	Failover    FailoverConfig    `yaml:"failover"`
 	Groups      []GroupConfig     `yaml:"groups"`
@@ -31,6 +32,12 @@ type GatewayAuthConfig struct {
 }
 
 type MetricsConfig struct {
+	Enabled   bool   `yaml:"enabled"`
+	Path      string `yaml:"path"`
+	AccessKey string `yaml:"accesskey"`
+}
+
+type PprofConfig struct {
 	Enabled   bool   `yaml:"enabled"`
 	Path      string `yaml:"path"`
 	AccessKey string `yaml:"accesskey"`
@@ -117,6 +124,9 @@ func (c *Config) applyDefaults() {
 	if c.Metrics.Path == "" {
 		c.Metrics.Path = "/metrics"
 	}
+	if c.Pprof.Path == "" {
+		c.Pprof.Path = "/debug/pprof"
+	}
 	if c.GatewayAuth.Enabled && !c.GatewayAuth.AcceptKey && !c.GatewayAuth.AcceptCode {
 		c.GatewayAuth.AcceptKey = true
 		c.GatewayAuth.AcceptCode = true
@@ -158,6 +168,8 @@ func (c *Config) applyDefaults() {
 }
 
 func (c *Config) normalize() {
+	c.Metrics.Path = strings.TrimSpace(c.Metrics.Path)
+	c.Pprof.Path = strings.TrimSpace(c.Pprof.Path)
 	for gi := range c.Groups {
 		c.Groups[gi].Allow = normalizePrefixes(c.Groups[gi].Allow)
 		c.Groups[gi].Deny = normalizePrefixes(c.Groups[gi].Deny)
@@ -191,6 +203,19 @@ func (c *Config) validate() error {
 	if c.Metrics.Enabled && c.Metrics.AccessKey == "" {
 		return fmt.Errorf("metrics.accesskey is required")
 	}
+	if c.Metrics.Enabled {
+		if c.Metrics.Path == "" || !strings.HasPrefix(c.Metrics.Path, "/") {
+			return fmt.Errorf("metrics.path must start with /")
+		}
+	}
+	if c.Pprof.Enabled {
+		if c.Pprof.AccessKey == "" {
+			return fmt.Errorf("pprof.accesskey is required")
+		}
+		if c.Pprof.Path == "" || !strings.HasPrefix(c.Pprof.Path, "/") {
+			return fmt.Errorf("pprof.path must start with /")
+		}
+	}
 	if c.Routing.DefaultGroup == "" {
 		return fmt.Errorf("routing.default_group is required")
 	}
@@ -215,6 +240,9 @@ func (c *Config) validate() error {
 		default:
 			return fmt.Errorf("group %s has invalid lb policy: %s", g.Name, g.LB.Policy)
 		}
+		if len(g.Upstreams) == 0 {
+			return fmt.Errorf("group %s must have at least one upstream", g.Name)
+		}
 		if g.Health.Active.Enabled {
 			if g.Health.Active.IntervalMS <= 0 || g.Health.Active.TimeoutMS <= 0 || g.Health.Active.Retries < 1 {
 				return fmt.Errorf("group %s has invalid health.active settings", g.Name)
@@ -236,6 +264,16 @@ func (c *Config) validate() error {
 			}
 			if up.AccessKey == "" {
 				return fmt.Errorf("group %s upstream access_key is required", g.Name)
+			}
+		}
+	}
+	for _, g := range c.Groups {
+		for _, fb := range g.FallbackGroups {
+			if fb == g.Name {
+				return fmt.Errorf("group %s fallback_groups cannot include itself", g.Name)
+			}
+			if _, ok := groups[fb]; !ok {
+				return fmt.Errorf("group %s fallback_groups references unknown group %s", g.Name, fb)
 			}
 		}
 	}

@@ -29,12 +29,12 @@ func New() *Metrics {
 		Requests: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "rsshub_gateway_requests_total",
 			Help: "Total number of gateway requests.",
-		}, []string{"method", "group", "status"}),
+		}, []string{"method", "group", "route_prefix", "status"}),
 		RequestDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:    "rsshub_gateway_request_duration_seconds",
 			Help:    "Gateway request duration in seconds.",
 			Buckets: prometheus.DefBuckets,
-		}, []string{"group"}),
+		}, []string{"group", "route_prefix"}),
 		UpstreamRequests: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "rsshub_gateway_upstream_requests_total",
 			Help: "Total number of upstream requests.",

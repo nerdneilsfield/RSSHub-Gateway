@@ -175,6 +175,107 @@ groups:
 	}
 }
 
+func TestReloadRejectsInvalidPprof(t *testing.T) {
+	cfg := `server:
+  listen: ":0"
+  timeout_ms: 200
+
+gateway_auth:
+  enabled: false
+
+metrics:
+  enabled: false
+
+routing:
+  default_group: "primary"
+
+failover:
+  retry:
+    enabled: false
+    max_retries: 1
+  passive_eject:
+    enabled: false
+    fail_threshold: 3
+    base_eject_ms: 10000
+    max_eject_ms: 60000
+
+groups:
+  - name: "primary"
+    priority: 10
+    allow: ["/"]
+    deny: []
+    lb:
+      policy: "wrr"
+    health:
+      active:
+        enabled: false
+    upstreams:
+      - url: "http://example.invalid"
+        weight: 1
+        access_key: "UP"
+`
+	path := writeTempConfig(t, cfg)
+
+	m := metrics.New()
+	mgr, err := NewManager(path, m, zap.NewNop())
+	if err != nil {
+		t.Fatalf("manager init: %v", err)
+	}
+
+	invalid := `server:
+  listen: ":0"
+  timeout_ms: 200
+
+gateway_auth:
+  enabled: false
+
+metrics:
+  enabled: false
+
+pprof:
+  enabled: true
+  path: "debug/pprof"
+  accesskey: ""
+
+routing:
+  default_group: "primary"
+
+failover:
+  retry:
+    enabled: false
+    max_retries: 1
+  passive_eject:
+    enabled: false
+    fail_threshold: 3
+    base_eject_ms: 10000
+    max_eject_ms: 60000
+
+groups:
+  - name: "primary"
+    priority: 10
+    allow: ["/"]
+    deny: []
+    lb:
+      policy: "wrr"
+    health:
+      active:
+        enabled: false
+    upstreams:
+      - url: "http://example.invalid"
+        weight: 1
+        access_key: "UP"
+`
+	if err := os.WriteFile(path, []byte(invalid), 0644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	if err := mgr.Reload(); err == nil {
+		t.Fatalf("expected reload failure")
+	}
+	if mgr.Get().DefaultGroup != "primary" {
+		t.Fatalf("expected default group to remain primary")
+	}
+}
+
 func writeTempConfig(t *testing.T, content string) string {
 	t.Helper()
 	file, err := os.CreateTemp(t.TempDir(), "cfg-*.yaml")

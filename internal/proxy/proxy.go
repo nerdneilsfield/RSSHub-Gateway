@@ -11,6 +11,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/nerdneilsfield/RSSHub-Gateway/internal/auth"
 	"github.com/nerdneilsfield/RSSHub-Gateway/internal/metrics"
+	pprofhandler "github.com/nerdneilsfield/RSSHub-Gateway/internal/pprof"
 	"github.com/nerdneilsfield/RSSHub-Gateway/internal/runtime"
 	"github.com/nerdneilsfield/RSSHub-Gateway/internal/upstream"
 	"github.com/valyala/fasthttp"
@@ -48,14 +49,19 @@ func (p *Proxy) Serve(c *fiber.Ctx) error {
 		}
 		return p.metrics.FiberHandler(rt.Metrics.AccessKey)(c)
 	}
+	if rt.Pprof.Enabled && pprofhandler.MatchPath(path, rt.Pprof.Path) {
+		return pprofhandler.Handle(c, rt.Pprof.Path, rt.Pprof.AccessKey)
+	}
 
 	args := c.Context().QueryArgs()
 	if !auth.ValidateGateway(rt.Auth, path, args) {
-		p.logAccess(start, method, path, "", http.StatusForbidden, 0, nil, "auth", errors.New("gateway auth failed"))
+		p.logAccess(start, method, path, "", "", http.StatusForbidden, 0, nil, "auth", errors.New("gateway auth failed"))
 		return c.SendStatus(http.StatusForbidden)
 	}
 
-	groupName := rt.Router.Select(path)
+	selection := rt.Router.Select(path)
+	groupName := selection.Group
+	routePrefix := selection.RoutePrefix
 	chain := buildChain(groupName, rt)
 	fallbackChain := make([]string, 0, len(chain))
 	fallbackChain = append(fallbackChain, groupName)
@@ -107,16 +113,16 @@ func (p *Proxy) Serve(c *fiber.Ctx) error {
 				if resp.status >= 500 {
 					p.recordFailure(group, up, errType, resp.status)
 				}
-				p.recordRequestMetrics(group.Name, method, resp.status, start)
-				p.logAccess(start, method, path, group.Name, resp.status, retries, fallbackChain, errType, nil)
+				p.recordRequestMetrics(group.Name, routePrefix, method, resp.status, start)
+				p.logAccess(start, method, path, group.Name, routePrefix, resp.status, retries, fallbackChain, errType, nil)
 				return copyResponse(c, resp)
 			}
 
 			p.recordFailure(group, up, errType, resp.status)
 			avoid[up] = struct{}{}
 			if !shouldRetry(errType) {
-				p.recordRequestMetrics(group.Name, method, resp.status, start)
-				p.logAccess(start, method, path, group.Name, resp.status, retries, fallbackChain, errType, err)
+				p.recordRequestMetrics(group.Name, routePrefix, method, resp.status, start)
+				p.logAccess(start, method, path, group.Name, routePrefix, resp.status, retries, fallbackChain, errType, err)
 				return c.SendStatus(resp.status)
 			}
 		}
@@ -127,8 +133,8 @@ func (p *Proxy) Serve(c *fiber.Ctx) error {
 	} else {
 		status = http.StatusBadGateway
 	}
-	p.recordRequestMetrics(finalGroup, method, status, start)
-	p.logAccess(start, method, path, finalGroup, status, retries, fallbackChain, lastErrType, lastErr)
+	p.recordRequestMetrics(finalGroup, routePrefix, method, status, start)
+	p.logAccess(start, method, path, finalGroup, routePrefix, status, retries, fallbackChain, lastErrType, lastErr)
 	return c.SendStatus(status)
 }
 
@@ -207,12 +213,12 @@ func (p *Proxy) recordUpstreamMetrics(groupName string, upstreamLabel string, st
 	p.metrics.UpstreamRequests.WithLabelValues(groupName, upstreamLabel, statusLabel(status)).Inc()
 }
 
-func (p *Proxy) recordRequestMetrics(groupName string, method string, status int, start time.Time) {
+func (p *Proxy) recordRequestMetrics(groupName string, routePrefix string, method string, status int, start time.Time) {
 	if p.metrics == nil {
 		return
 	}
-	p.metrics.Requests.WithLabelValues(method, groupName, statusLabel(status)).Inc()
-	p.metrics.RequestDuration.WithLabelValues(groupName).Observe(time.Since(start).Seconds())
+	p.metrics.Requests.WithLabelValues(method, groupName, routePrefix, statusLabel(status)).Inc()
+	p.metrics.RequestDuration.WithLabelValues(groupName, routePrefix).Observe(time.Since(start).Seconds())
 }
 
 func (p *Proxy) recordFailure(group *runtime.GroupRuntime, up *upstream.State, errType string, status int) {
@@ -281,7 +287,7 @@ func buildChain(groupName string, rt *runtime.Runtime) []string {
 	return chain
 }
 
-func (p *Proxy) logAccess(start time.Time, method string, path string, group string, status int, retries int, fallbackChain []string, errType string, err error) {
+func (p *Proxy) logAccess(start time.Time, method string, path string, group string, routePrefix string, status int, retries int, fallbackChain []string, errType string, err error) {
 	if p.logger == nil {
 		return
 	}
@@ -290,6 +296,7 @@ func (p *Proxy) logAccess(start time.Time, method string, path string, group str
 		zap.String("method", method),
 		zap.String("path", path),
 		zap.String("group", group),
+		zap.String("route_prefix", routePrefix),
 		zap.Int("status", status),
 		zap.Int("duration_ms", int(time.Since(start).Milliseconds())),
 		zap.Int("retries", retries),

@@ -1,13 +1,13 @@
 # RSSHub-Gateway
 
 A simple, production-ready gateway for multi-instance RSSHub deployments. It provides
-routing by prefix, per-group load balancing, health checks and failover, metrics, and
-hot reload. The goal is to keep RSSHub compatibility while making operations safer.
+routing by prefix, per-group load balancing, health checks and failover, metrics,
+pprof, and hot reload. The goal is to keep RSSHub compatibility while making operations safer.
 
 - Language: Go
 - Transport: Fiber + fasthttp
 - Auth: gateway key/code + upstream code injection
-- Observability: Prometheus + JSON logs
+- Observability: Prometheus + pprof + JSON logs
 
 [中文说明](README_zh.md)
 
@@ -18,6 +18,7 @@ hot reload. The goal is to keep RSSHub compatibility while making operations saf
 - Upstream auth injection: remove client key/code, inject upstream code
 - Active health checks + passive eject + retry + fallback
 - Prometheus metrics with access key
+- Pprof endpoints with access key
 - JSON access and event logs
 - SIGHUP config reload with rollback on failure
 
@@ -99,6 +100,7 @@ The full schema lives in `config.example.yaml`.
 - Health check uses `path`, `interval_ms`, `timeout_ms`, `retries`.
 - `failover.passive_eject` requires `base_eject_ms <= max_eject_ms`.
 - Metrics require `metrics.accesskey` when enabled.
+- Pprof requires `pprof.accesskey` when enabled.
 </details>
 
 <details>
@@ -119,6 +121,11 @@ metrics:
   enabled: true
   path: "/metrics"
   accesskey: "PROM_KEY_123"
+
+pprof:
+  enabled: false
+  path: "/debug/pprof"
+  accesskey: "PPROF_KEY_123"
 
 routing:
   default_group: "public"
@@ -211,8 +218,8 @@ GET /metrics?accesskey=<METRICS_ACCESS_KEY>
 <details>
 <summary>Metrics list</summary>
 
-- rsshub_gateway_requests_total{method,group,status}
-- rsshub_gateway_request_duration_seconds_bucket{group}
+- rsshub_gateway_requests_total{method,group,route_prefix,status}
+- rsshub_gateway_request_duration_seconds_bucket{group,route_prefix}
 - rsshub_gateway_upstream_requests_total{group,upstream,status}
 - rsshub_gateway_upstream_health{group,upstream}
 - rsshub_gateway_upstream_eject_total{group,upstream}
@@ -220,6 +227,14 @@ GET /metrics?accesskey=<METRICS_ACCESS_KEY>
 - rsshub_gateway_fallback_total{from,to}
 - rsshub_gateway_config_reload_total{result}
 </details>
+
+## Pprof
+
+Pprof endpoint (requires access key):
+
+```text
+GET /debug/pprof/?accesskey=<PPROF_ACCESS_KEY>
+```
 
 ## Logging
 
@@ -236,6 +251,7 @@ and reload outcomes.
 - path
 - group
 - upstream
+- route_prefix
 - status
 - duration_ms
 - retries

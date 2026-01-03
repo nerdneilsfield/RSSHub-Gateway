@@ -20,6 +20,7 @@ type Runtime struct {
 	DefaultGroup string
 	Auth         config.GatewayAuthConfig
 	Metrics      config.MetricsConfig
+	Pprof        config.PprofConfig
 	Failover     config.FailoverConfig
 	Server       config.ServerConfig
 
@@ -91,6 +92,7 @@ func Build(cfg *config.Config, m *metrics.Metrics, logger *zap.Logger) (*Runtime
 		DefaultGroup: cfg.Routing.DefaultGroup,
 		Auth:         cfg.GatewayAuth,
 		Metrics:      cfg.Metrics,
+		Pprof:        cfg.Pprof,
 		Failover:     cfg.Failover,
 		Server:       cfg.Server,
 		stop:         make(chan struct{}),

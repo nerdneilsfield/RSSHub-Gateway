@@ -37,6 +37,19 @@ metrics:
   # 中文: 指标访问密钥（query）
   accesskey: "PROM_KEY_123"
 
+# EN: pprof debug endpoints
+# 中文: pprof 调试端点
+pprof:
+  # EN: enable pprof
+  # 中文: 是否启用 pprof
+  enabled: false
+  # EN: pprof path
+  # 中文: pprof 路径
+  path: "/debug/pprof"
+  # EN: query key for pprof access
+  # 中文: pprof 访问密钥（query）
+  accesskey: "PPROF_KEY_123"
+
 # EN: routing defaults
 # 中文: 路由默认配置
 routing:

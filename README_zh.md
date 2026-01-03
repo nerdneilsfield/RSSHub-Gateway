@@ -6,7 +6,7 @@
 - 语言：Go
 - 网络：Fiber + fasthttp
 - 鉴权：网关 key/code + 上游 code 注入
-- 可观测：Prometheus + JSON 日志
+- 可观测：Prometheus + pprof + JSON 日志
 
 [English README](README.md)
 
@@ -17,6 +17,7 @@
 - 上游注入：剥离客户端 key/code，注入 upstream code
 - 健康检查 + 被动剔除 + 重试 + fallback
 - Prometheus 指标（accesskey 保护）
+- pprof 调试端点（accesskey 保护）
 - JSON 结构化日志
 - SIGHUP 热加载（失败回滚）
 
@@ -98,6 +99,7 @@ docker run --rm -p 8080:8080 \
 - 健康检查使用 `path`、`interval_ms`、`timeout_ms`、`retries`。
 - `failover.passive_eject` 要求 `base_eject_ms <= max_eject_ms`。
 - 启用 metrics 时需要配置 `metrics.accesskey`。
+- 启用 pprof 时需要配置 `pprof.accesskey`。
 </details>
 
 <details>
@@ -118,6 +120,11 @@ metrics:
   enabled: true
   path: "/metrics"
   accesskey: "PROM_KEY_123"
+
+pprof:
+  enabled: false
+  path: "/debug/pprof"
+  accesskey: "PPROF_KEY_123"
 
 routing:
   default_group: "public"
@@ -210,8 +217,8 @@ GET /metrics?accesskey=<METRICS_ACCESS_KEY>
 <details>
 <summary>指标列表</summary>
 
-- rsshub_gateway_requests_total{method,group,status}
-- rsshub_gateway_request_duration_seconds_bucket{group}
+- rsshub_gateway_requests_total{method,group,route_prefix,status}
+- rsshub_gateway_request_duration_seconds_bucket{group,route_prefix}
 - rsshub_gateway_upstream_requests_total{group,upstream,status}
 - rsshub_gateway_upstream_health{group,upstream}
 - rsshub_gateway_upstream_eject_total{group,upstream}
@@ -219,6 +226,14 @@ GET /metrics?accesskey=<METRICS_ACCESS_KEY>
 - rsshub_gateway_fallback_total{from,to}
 - rsshub_gateway_config_reload_total{result}
 </details>
+
+## pprof
+
+访问方式（带 accesskey）：
+
+```text
+GET /debug/pprof/?accesskey=<PPROF_ACCESS_KEY>
+```
 
 ## 日志
 
@@ -234,6 +249,7 @@ GET /metrics?accesskey=<METRICS_ACCESS_KEY>
 - path
 - group
 - upstream
+- route_prefix
 - status
 - duration_ms
 - retries
