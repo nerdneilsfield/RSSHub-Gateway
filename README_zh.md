@@ -1,16 +1,22 @@
 # RSSHub-Gateway
 
-面向 RSSHub 多实例部署的轻量网关，并支持 Upvote RSS。保持 RSSHub 路由兼容，
+[![GoReleaser](https://github.com/nerdneilsfield/RSSHub-Gateway/actions/workflows/goreleaser.yml/badge.svg)](https://github.com/nerdneilsfield/RSSHub-Gateway/actions/workflows/goreleaser.yml)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/nerdneilsfield/RSSHub-Gateway)](go.mod)
+[![Release](https://img.shields.io/github/v/release/nerdneilsfield/RSSHub-Gateway?include_prereleases)](https://github.com/nerdneilsfield/RSSHub-Gateway/releases)
+[![License](https://img.shields.io/github/license/nerdneilsfield/RSSHub-Gateway)](LICENSE)
+
+一个入口，掌控多套 RSSHub 与 Upvote RSS。保持 RSSHub 路由兼容，
 同时提供路由分组、负载均衡、健康检查、可观测性与热更新，便于稳定上线与运维。
 
-- 语言：Go
-- 网络：Fiber + fasthttp
-- 鉴权：网关 key/code + 上游 code 注入（仅 RSSHub）
-- 可观测：Prometheus + pprof + JSON 日志
+一眼了解：
+- Go + Fiber + fasthttp，面向低延迟代理
+- 网关 key/code 鉴权 + RSSHub 安全 code 注入
+- 健康检查、被动剔除、重试与回退
+- Prometheus + pprof + JSON 日志 + 热更新
 
 [English README](README.md)
 
-## 功能亮点
+## 亮点一览
 - 多后端路由：`/rsshub/` -> RSSHub，`/upvote/` -> Upvote RSS
 - 路由分组：按前缀 allow/deny，最长前缀优先
 - 组内负载均衡：平滑加权轮询（WRR）或 hash(path)
@@ -23,16 +29,25 @@
 - JSON 结构化日志
 - SIGHUP 热加载（失败回滚）
 
+## 典型场景
+- 用一个稳定入口承载多个 RSSHub 集群
+- 上游不稳时自动切换，订阅地址不变
+- 用短链接管理订阅入口，方便分发
+
 ## 架构示意
+
+请求流程很简单：鉴权 → 前缀路由 → 选 upstream → 转发。
 
 ```mermaid
 flowchart LR
     Client -->|HTTP| Gateway
+    Gateway -->|/short/*| Short
+    Short -->|301| Target
     Gateway --> Router
     Router --> Group
     Group --> LB
-    LB --> Upstream1
-    LB --> Upstream2
+    LB --> RSSHub
+    LB --> Upvote
     Gateway -->|/metrics| Prometheus
     Gateway -->|logs| Logger
 ```
@@ -45,19 +60,27 @@ sequenceDiagram
     participant LB as Load Balancer
     participant U as Upstream
 
-    C->>G: 请求 /rsshub/path?key=...
-    G->>G: 校验 key/code
-    G->>R: 前缀选组
-    R-->>G: 组名
-    G->>LB: 选 upstream
-    LB-->>G: upstream
-    G->>G: 删除 key/code，注入 upstream code（rsshub）
-    G->>U: 代理转发
-    U-->>G: 响应
-    G-->>C: 返回
+    C->>G: GET /short/latepost?key=...
+    alt short 命中
+        G->>G: 解析 short + 透传 query
+        G-->>C: 301 Location: /rsshub/latepost/4?key=...
+    else 业务代理
+        C->>G: GET /rsshub/path?key=...
+        G->>G: 校验 key/code
+        G->>R: 前缀选组
+        R-->>G: 组名
+        G->>LB: 选 upstream
+        LB-->>G: upstream
+        G->>G: 删除 key/code，注入 upstream code（rsshub）
+        G->>U: 代理转发
+        U-->>G: 响应
+        G-->>C: 返回
+    end
 ```
 
-## 快速开始
+## 60 秒上手
+
+本地构建并用示例配置启动：
 
 ```bash
 # 构建
@@ -226,6 +249,7 @@ http://127.0.0.1:8080/upvote/?platform=reddit&key=ACCESS_KEY
 ## 订阅缩写
 
 short 入口返回 301 并将原始 query 追加到目标 URL。
+如果目标已包含 query，会用 `&` 追加，不会覆盖已有参数。
 
 ```text
 GET /short/latepost?key=ACCESS_KEY

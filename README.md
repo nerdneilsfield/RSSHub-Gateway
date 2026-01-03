@@ -1,39 +1,49 @@
 # RSSHub-Gateway
 
-A simple, production-ready gateway for multi-instance RSSHub deployments, plus Upvote RSS.
-It provides routing by prefix, per-group load balancing, health checks and failover,
-metrics, pprof, and hot reload. The goal is to keep RSSHub compatibility while making operations safer.
+[![GoReleaser](https://github.com/nerdneilsfield/RSSHub-Gateway/actions/workflows/goreleaser.yml/badge.svg)](https://github.com/nerdneilsfield/RSSHub-Gateway/actions/workflows/goreleaser.yml)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/nerdneilsfield/RSSHub-Gateway)](go.mod)
+[![Release](https://img.shields.io/github/v/release/nerdneilsfield/RSSHub-Gateway?include_prereleases)](https://github.com/nerdneilsfield/RSSHub-Gateway/releases)
+[![License](https://img.shields.io/github/license/nerdneilsfield/RSSHub-Gateway)](LICENSE)
 
-- Language: Go
-- Transport: Fiber + fasthttp
-- Auth: gateway key/code + upstream code injection (RSSHub)
-- Observability: Prometheus + pprof + JSON logs
+One gateway, many feeds. Keep RSSHub and Upvote RSS stable under load with routing,
+auth, health checks, and first-class observability, while staying RSSHub-compatible.
+
+At a glance:
+- Go + Fiber + fasthttp, optimized for low-latency proxying
+- Gateway key/code auth with safe RSSHub code injection
+- Active health checks, passive eject, retry, and fallback
+- Prometheus metrics, pprof, JSON logs, and hot reload
 
 [中文说明](README_zh.md)
 
-## Features
+## Highlights
 - Multi-backend routing: `/rsshub/` for RSSHub, `/upvote/` for Upvote RSS
-- Route by prefix with allow/deny rules and longest-prefix selection
-- Load balancing per group: smooth WRR or hash(path)
-- Gateway auth: `?key=` or `?code=md5(path+key)`
-- Upstream auth injection: remove client key/code, inject upstream code for RSSHub only
+- Prefix-based grouping with longest-match selection and per-group LB
 - Short subscriptions: `/short/{name}` 301 redirect with query passthrough
+- Gateway auth: `?key=` or `?code=md5(path+key)` + RSSHub code injection
 - Active health checks + passive eject + retry + fallback
-- Prometheus metrics with access key
-- Pprof endpoints with access key
-- JSON access and event logs
+- Prometheus metrics, pprof, JSON access/event logs
 - SIGHUP config reload with rollback on failure
 
+## Typical Use Cases
+- One stable URL for multiple RSSHub clusters
+- Fast failover across upstreams without changing feed URLs
+- Short, memorable subscription links for feed readers
+
 ## Architecture
+
+Request flow stays simple: authenticate, route by prefix, pick upstream, proxy.
 
 ```mermaid
 flowchart LR
     Client -->|HTTP| Gateway
+    Gateway -->|/short/*| Short
+    Short -->|301| Target
     Gateway --> Router
     Router --> Group
     Group --> LB
-    LB --> Upstream1
-    LB --> Upstream2
+    LB --> RSSHub
+    LB --> Upvote
     Gateway -->|/metrics| Prometheus
     Gateway -->|logs| Logger
 ```
@@ -46,19 +56,27 @@ sequenceDiagram
     participant LB as Load Balancer
     participant U as Upstream
 
-    C->>G: Request /rsshub/path?key=...
-    G->>G: Validate key/code
-    G->>R: Select group by prefix
-    R-->>G: Group name
-    G->>LB: Pick upstream
-    LB-->>G: Upstream
-    G->>G: Remove key/code, inject upstream code (rsshub)
-    G->>U: Proxy request
-    U-->>G: Response
-    G-->>C: Response
+    C->>G: GET /short/latepost?key=...
+    alt short hit
+        G->>G: Resolve short + passthrough query
+        G-->>C: 301 Location: /rsshub/latepost/4?key=...
+    else proxy
+        C->>G: GET /rsshub/path?key=...
+        G->>G: Validate key/code
+        G->>R: Select group by prefix
+        R-->>G: Group name
+        G->>LB: Pick upstream
+        LB-->>G: Upstream
+        G->>G: Remove key/code, inject upstream code (rsshub)
+        G->>U: Proxy request
+        U-->>G: Response
+        G-->>C: Response
+    end
 ```
 
-## Quickstart
+## Try It in 60 Seconds
+
+Build locally and run with the sample config:
 
 ```bash
 # build
@@ -223,6 +241,7 @@ and compute `md5("/rsshub/latepost/4"+ACCESS_KEY)`. Key-based access is unchange
 ## Short Subscriptions
 
 Short entries return a 301 redirect and append the original query string to the target.
+If the target already contains query parameters, the short query is appended with `&`.
 
 ```text
 GET /short/latepost?key=ACCESS_KEY
