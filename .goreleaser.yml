@@ -54,7 +54,7 @@ release:
 
 dockers_v2:
   - id: rsshub-gateway
-    dockerfile: Dockerfile
+    dockerfile: Dockerfile.goreleaser
     ids:
       - rsshub-gateway
     images:

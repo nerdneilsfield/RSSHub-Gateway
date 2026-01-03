@@ -1,0 +1,13 @@
+FROM alpine:3.20
+
+ARG TARGETPLATFORM
+
+RUN addgroup -S app && adduser -S app -G app
+USER app
+
+WORKDIR /app
+COPY ${TARGETPLATFORM}/rsshub-gateway /app/rsshub-gateway
+COPY config.example.yaml /app/config.example.yaml
+
+EXPOSE 8080
+ENTRYPOINT ["/app/rsshub-gateway", "serve", "-c", "/app/config.example.yaml"]
