@@ -205,6 +205,10 @@ http://127.0.0.1:8080/rsshub/latepost/4?code=md5(path+ACCESS_KEY)
 http://127.0.0.1:8080/upvote/?platform=reddit&key=ACCESS_KEY
 ```
 
+Migration note (code auth):
+If you previously used `?code=` with `/latepost/...`, update the path to `/rsshub/latepost/...`
+and compute `md5("/rsshub/latepost/4"+ACCESS_KEY)`. Key-based access is unchanged.
+
 Upstream injection rules:
 - Remove client `key` and `code`
 - Inject `code=md5(path+upstream_access_key)` for RSSHub only

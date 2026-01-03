@@ -204,6 +204,10 @@ http://127.0.0.1:8080/rsshub/latepost/4?code=md5(path+ACCESS_KEY)
 http://127.0.0.1:8080/upvote/?platform=reddit&key=ACCESS_KEY
 ```
 
+迁移说明（code 方式）：
+如果之前用 `?code=` 访问 `/latepost/...`，需要改成 `/rsshub/latepost/...`，
+并按 `md5("/rsshub/latepost/4"+ACCESS_KEY)` 计算。key 方式不变。
+
 上游注入规则：
 - 删除客户端 `key` 与 `code`
 - 仅 RSSHub 注入 `code=md5(path+upstream_access_key)`
