@@ -10,15 +10,15 @@ default:
 
 # 构建 Golang 二进制文件
 build:
-    go build -ldflags {{ldflags}} -o {{projectname}} ./
+    go build -ldflags '{{ldflags}}' -o {{projectname}} ./
 
 # 安装 Golang 二进制文件
 install:
-    go install -ldflags {{ldflags}}
+    go install -ldflags '{{ldflags}}'
 
 # 运行应用程序
 run:
-    go run -ldflags {{ldflags}} ./ serve -c config.example.yaml
+    go run -ldflags '{{ldflags}}' ./ serve -c config.example.yaml
 
 # 安装构建依赖
 bootstrap:
