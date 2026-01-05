@@ -121,6 +121,25 @@ docker run --rm -p 8080:8080 \
   /app/rsshub-gateway serve -c /app/config.yaml
 ```
 
+## 部署示例（Docker Compose）
+
+```yaml
+services:
+  rsshub-gateway:
+    image: ghcr.io/nerdneilsfield/rsshub-gateway:latest
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+    command: ["/app/rsshub-gateway", "serve", "-c", "/app/config.yaml"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+```
+
 ## 配置
 
 完整配置见 `config.example.yaml`。
