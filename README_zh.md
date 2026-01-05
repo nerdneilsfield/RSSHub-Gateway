@@ -29,6 +29,7 @@
 - pprof 调试端点（accesskey 保护）
 - JSON 结构化日志
 - SIGHUP 热加载（失败回滚）
+- 响应缓存（memory/redis）+ 自动轮询重载
 
 ## 典型场景
 - 用一个稳定入口承载多个 RSSHub 集群
@@ -129,6 +130,8 @@ docker run --rm -p 8080:8080 \
 - `failover.passive_eject` 要求 `base_eject_ms <= max_eject_ms`。
 - 启用 metrics 时需要配置 `metrics.accesskey`。
 - 启用 pprof 时需要配置 `pprof.accesskey`。
+- 缓存需要配置 provider（`memory` 或 `redis`）、TTL 和大小限制；仅缓存 GET 2xx/3xx。
+- 自动轮询重载通过配置 hash 对比（`reload.auto.enabled` + `interval_ms`）。
 - 启用 short 时 `short.path` 必须以 `/` 开头，且 name 唯一。
 </details>
 
@@ -160,6 +163,26 @@ pprof:
   enabled: false
   path: "/debug/pprof"
   accesskey: "PPROF_KEY_123"
+
+cache:
+  enabled: false
+  provider: "memory"
+  ttl_ms: 3600000
+  max_item_bytes: 2097152
+  max_total_bytes: 52428800
+  redis:
+    addr: "127.0.0.1:6379"
+    password: ""
+    db: 0
+    dial_timeout_ms: 1000
+    read_timeout_ms: 1000
+    write_timeout_ms: 1000
+    key_prefix: "rsshub_gateway"
+
+reload:
+  auto:
+    enabled: false
+    interval_ms: 30000
 
 short:
   enabled: true

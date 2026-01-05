@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sync/atomic"
 	"strings"
 	"testing"
 	"time"
@@ -424,6 +425,10 @@ groups:
 		!strings.Contains(string(body), "route_prefix=\"/foo/\"") {
 		t.Fatalf("expected route_prefix label in metrics output")
 	}
+	if !strings.Contains(string(body), "rsshub_gateway_upstream_success_total") ||
+		!strings.Contains(string(body), "rsshub_gateway_route_success_total") {
+		t.Fatalf("expected success counters in metrics output")
+	}
 }
 
 func TestGatewayKeyAuth(t *testing.T) {
@@ -502,6 +507,95 @@ groups:
 	}
 	if badResp.StatusCode != http.StatusForbidden {
 		t.Fatalf("expected 403, got %d", badResp.StatusCode)
+	}
+}
+
+func TestCacheHitMemory(t *testing.T) {
+	var hits int32
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&hits, 1)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer up.Close()
+
+	cfg := `server:
+  listen: ":0"
+  timeout_ms: 200
+
+gateway_auth:
+  enabled: false
+
+metrics:
+  enabled: false
+
+cache:
+  enabled: true
+  provider: "memory"
+  ttl_ms: 60000
+  max_item_bytes: 2097152
+  max_total_bytes: 52428800
+
+routing:
+  default_group: "public"
+
+failover:
+  retry:
+    enabled: false
+    max_retries: 1
+  passive_eject:
+    enabled: false
+    fail_threshold: 3
+    base_eject_ms: 10000
+    max_eject_ms: 60000
+
+groups:
+  - name: "public"
+    priority: 10
+    allow: ["/"]
+    deny: []
+    lb:
+      policy: "wrr"
+    health:
+      active:
+        enabled: false
+    upstreams:
+      - url: "` + up.URL + `"
+        weight: 1
+        access_key: "UP"
+`
+	path := writeTempConfig(t, cfg)
+
+	m := metrics.New()
+	mgr, err := runtime.NewManager(path, m, zap.NewNop())
+	if err != nil {
+		t.Fatalf("manager init: %v", err)
+	}
+
+	app := fiber.New()
+	app.All("/*", New(mgr, m, zap.NewNop()).Serve)
+
+	req1 := httptest.NewRequest(http.MethodGet, "http://localhost/foo?key=ONE&bar=1", nil)
+	resp1, err := app.Test(req1)
+	if err != nil {
+		t.Fatalf("app test: %v", err)
+	}
+	if resp1.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp1.Body)
+		t.Fatalf("expected 200, got %d: %s", resp1.StatusCode, string(body))
+	}
+
+	req2 := httptest.NewRequest(http.MethodGet, "http://localhost/foo?key=TWO&bar=1", nil)
+	resp2, err := app.Test(req2)
+	if err != nil {
+		t.Fatalf("app test: %v", err)
+	}
+	if resp2.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp2.Body)
+		t.Fatalf("expected 200, got %d: %s", resp2.StatusCode, string(body))
+	}
+	if atomic.LoadInt32(&hits) != 1 {
+		t.Fatalf("expected upstream hit once, got %d", hits)
 	}
 }
 

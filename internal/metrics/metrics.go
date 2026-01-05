@@ -15,6 +15,12 @@ type Metrics struct {
 	Requests         *prometheus.CounterVec
 	RequestDuration  *prometheus.HistogramVec
 	UpstreamRequests *prometheus.CounterVec
+	UpstreamSuccess  *prometheus.CounterVec
+	UpstreamFailure  *prometheus.CounterVec
+	RouteSuccess     *prometheus.CounterVec
+	RouteFailure     *prometheus.CounterVec
+	CacheHit         *prometheus.CounterVec
+	CacheMiss        *prometheus.CounterVec
 	UpstreamHealth   *prometheus.GaugeVec
 	UpstreamEject    *prometheus.CounterVec
 	RetryTotal       *prometheus.CounterVec
@@ -39,6 +45,30 @@ func New() *Metrics {
 			Name: "rsshub_gateway_upstream_requests_total",
 			Help: "Total number of upstream requests.",
 		}, []string{"group", "upstream", "status"}),
+		UpstreamSuccess: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "rsshub_gateway_upstream_success_total",
+			Help: "Total number of successful upstream responses.",
+		}, []string{"group", "upstream"}),
+		UpstreamFailure: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "rsshub_gateway_upstream_failure_total",
+			Help: "Total number of failed upstream responses.",
+		}, []string{"group", "upstream"}),
+		RouteSuccess: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "rsshub_gateway_route_success_total",
+			Help: "Total number of successful route responses.",
+		}, []string{"group", "route_prefix"}),
+		RouteFailure: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "rsshub_gateway_route_failure_total",
+			Help: "Total number of failed route responses.",
+		}, []string{"group", "route_prefix"}),
+		CacheHit: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "rsshub_gateway_cache_hit_total",
+			Help: "Total number of cache hits.",
+		}, []string{"provider"}),
+		CacheMiss: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "rsshub_gateway_cache_miss_total",
+			Help: "Total number of cache misses.",
+		}, []string{"provider"}),
 		UpstreamHealth: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "rsshub_gateway_upstream_health",
 			Help: "Upstream health status (1 healthy, 0 unhealthy).",
@@ -65,6 +95,12 @@ func New() *Metrics {
 		m.Requests,
 		m.RequestDuration,
 		m.UpstreamRequests,
+		m.UpstreamSuccess,
+		m.UpstreamFailure,
+		m.RouteSuccess,
+		m.RouteFailure,
+		m.CacheHit,
+		m.CacheMiss,
 		m.UpstreamHealth,
 		m.UpstreamEject,
 		m.RetryTotal,

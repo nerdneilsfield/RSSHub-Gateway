@@ -25,6 +25,7 @@ At a glance:
 - Active health checks + passive eject + retry + fallback
 - Prometheus metrics, pprof, JSON access/event logs
 - SIGHUP config reload with rollback on failure
+- Response cache (memory/redis) + auto reload polling
 
 ## Typical Use Cases
 - One stable URL for multiple RSSHub clusters
@@ -125,6 +126,8 @@ The full schema lives in `config.example.yaml`.
 - `failover.passive_eject` requires `base_eject_ms <= max_eject_ms`.
 - Metrics require `metrics.accesskey` when enabled.
 - Pprof requires `pprof.accesskey` when enabled.
+- Cache requires provider (`memory` or `redis`) with TTL and size limits; caches GET 2xx/3xx only.
+- Auto reload polling uses config hash compare (`reload.auto.enabled` + `interval_ms`).
 - Short requires `short.path` (starts with `/`) and unique entry names when enabled.
 </details>
 
@@ -156,6 +159,26 @@ pprof:
   enabled: false
   path: "/debug/pprof"
   accesskey: "PPROF_KEY_123"
+
+cache:
+  enabled: false
+  provider: "memory"
+  ttl_ms: 3600000
+  max_item_bytes: 2097152
+  max_total_bytes: 52428800
+  redis:
+    addr: "127.0.0.1:6379"
+    password: ""
+    db: 0
+    dial_timeout_ms: 1000
+    read_timeout_ms: 1000
+    write_timeout_ms: 1000
+    key_prefix: "rsshub_gateway"
+
+reload:
+  auto:
+    enabled: false
+    interval_ms: 30000
 
 short:
   enabled: true

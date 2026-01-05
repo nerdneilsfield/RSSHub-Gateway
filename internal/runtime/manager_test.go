@@ -3,6 +3,7 @@ package runtime
 import (
 	"os"
 	"testing"
+	"time"
 
 	"github.com/nerdneilsfield/RSSHub-Gateway/internal/metrics"
 	"go.uber.org/zap"
@@ -173,6 +174,115 @@ groups:
 	if third.DefaultGroup != "backup" {
 		t.Fatalf("expected default group to remain backup")
 	}
+}
+
+func TestAutoReloadPolling(t *testing.T) {
+	cfg1 := `server:
+  listen: ":0"
+  timeout_ms: 200
+
+gateway_auth:
+  enabled: false
+
+metrics:
+  enabled: false
+
+reload:
+  auto:
+    enabled: true
+    interval_ms: 50
+
+routing:
+  default_group: "primary"
+
+failover:
+  retry:
+    enabled: false
+    max_retries: 1
+  passive_eject:
+    enabled: false
+    fail_threshold: 3
+    base_eject_ms: 10000
+    max_eject_ms: 60000
+
+groups:
+  - name: "primary"
+    priority: 10
+    allow: ["/"]
+    deny: []
+    lb:
+      policy: "wrr"
+    health:
+      active:
+        enabled: false
+    upstreams:
+      - url: "http://example.invalid"
+        weight: 1
+        access_key: "UP"
+`
+	path := writeTempConfig(t, cfg1)
+
+	m := metrics.New()
+	mgr, err := NewManager(path, m, zap.NewNop())
+	if err != nil {
+		t.Fatalf("manager init: %v", err)
+	}
+
+	cfg2 := `server:
+  listen: ":0"
+  timeout_ms: 400
+
+gateway_auth:
+  enabled: false
+
+metrics:
+  enabled: false
+
+reload:
+  auto:
+    enabled: true
+    interval_ms: 50
+
+routing:
+  default_group: "primary"
+
+failover:
+  retry:
+    enabled: false
+    max_retries: 1
+  passive_eject:
+    enabled: false
+    fail_threshold: 3
+    base_eject_ms: 10000
+    max_eject_ms: 60000
+
+groups:
+  - name: "primary"
+    priority: 10
+    allow: ["/"]
+    deny: []
+    lb:
+      policy: "wrr"
+    health:
+      active:
+        enabled: false
+    upstreams:
+      - url: "http://example.invalid"
+        weight: 1
+        access_key: "UP"
+`
+	if err := os.WriteFile(path, []byte(cfg2), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		if mgr.Get().Server.TimeoutMS == 400 {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("expected auto reload to update timeout")
 }
 
 func TestReloadRejectsInvalidPprof(t *testing.T) {

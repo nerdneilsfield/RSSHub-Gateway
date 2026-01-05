@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/nerdneilsfield/RSSHub-Gateway/internal/cache"
 	"github.com/nerdneilsfield/RSSHub-Gateway/internal/auth"
 	"github.com/nerdneilsfield/RSSHub-Gateway/internal/home"
 	"github.com/nerdneilsfield/RSSHub-Gateway/internal/metrics"
@@ -78,6 +79,27 @@ func (p *Proxy) Serve(c *fiber.Ctx) error {
 	selection := rt.Router.Select(path)
 	groupName := selection.Group
 	routePrefix := selection.RoutePrefix
+	cacheKey := ""
+	cacheEnabled := method == fiber.MethodGet && rt.Cache.Enabled && rt.CacheStore != nil
+	if cacheEnabled {
+		group := rt.Groups[groupName]
+		if group != nil {
+			upstreamPath := rewritePath(path, group.StripPrefix)
+			cacheKey = cache.BuildKey(upstreamPath, args)
+			if entry, ok := rt.CacheStore.GetResponse(cacheKey); ok {
+				if p.metrics != nil {
+					p.metrics.CacheHit.WithLabelValues(rt.CacheStore.Provider()).Inc()
+				}
+				status := entry.Status
+				p.recordRequestMetrics(groupName, routePrefix, method, status, start)
+				p.logAccess(start, method, path, groupName, routePrefix, status, 0, []string{groupName}, "cache", nil)
+				return copyResponse(c, responseFromCache(entry))
+			}
+			if p.metrics != nil {
+				p.metrics.CacheMiss.WithLabelValues(rt.CacheStore.Provider()).Inc()
+			}
+		}
+	}
 	chain := buildChain(groupName, rt)
 	fallbackChain := make([]string, 0, len(chain))
 	fallbackChain = append(fallbackChain, groupName)
@@ -126,8 +148,12 @@ func (p *Proxy) Serve(c *fiber.Ctx) error {
 			lastErrType = errType
 			lastErr = err
 
+			p.recordUpstreamMetrics(group.Name, up.HostLabel, resp.status)
 			if err == nil {
-				p.recordUpstreamMetrics(group.Name, up.HostLabel, resp.status)
+				if cacheEnabled && cacheKey != "" && shouldCacheStatus(resp.status) {
+					entry := cacheEntryFromResponse(resp)
+					_ = rt.CacheStore.SetResponse(cacheKey, entry, time.Duration(rt.Cache.TTLMS)*time.Millisecond)
+				}
 				if resp.status >= 500 {
 					p.recordFailure(group, up, errType, resp.status)
 				}
@@ -185,7 +211,6 @@ func (p *Proxy) forward(c *fiber.Ctx, rt *runtime.Runtime, groupName string, up 
 	if err != nil {
 		errType := classifyError(err)
 		resp.status = statusFromError(errType)
-		p.recordUpstreamMetrics(groupName, up.HostLabel, resp.status)
 		return resp, errType, err
 	}
 
@@ -199,7 +224,6 @@ func (p *Proxy) forward(c *fiber.Ctx, rt *runtime.Runtime, groupName string, up 
 		resp.headers = append(resp.headers, [2][]byte{append([]byte(nil), k...), append([]byte(nil), v...)})
 	})
 
-	p.recordUpstreamMetrics(groupName, up.HostLabel, resp.status)
 	return resp, "", nil
 }
 
@@ -229,6 +253,11 @@ func (p *Proxy) recordUpstreamMetrics(groupName string, upstreamLabel string, st
 		return
 	}
 	p.metrics.UpstreamRequests.WithLabelValues(groupName, upstreamLabel, statusLabel(status)).Inc()
+	if isSuccessStatus(status) {
+		p.metrics.UpstreamSuccess.WithLabelValues(groupName, upstreamLabel).Inc()
+	} else {
+		p.metrics.UpstreamFailure.WithLabelValues(groupName, upstreamLabel).Inc()
+	}
 }
 
 func (p *Proxy) recordRequestMetrics(groupName string, routePrefix string, method string, status int, start time.Time) {
@@ -237,6 +266,11 @@ func (p *Proxy) recordRequestMetrics(groupName string, routePrefix string, metho
 	}
 	p.metrics.Requests.WithLabelValues(method, groupName, routePrefix, statusLabel(status)).Inc()
 	p.metrics.RequestDuration.WithLabelValues(groupName, routePrefix).Observe(time.Since(start).Seconds())
+	if isSuccessStatus(status) {
+		p.metrics.RouteSuccess.WithLabelValues(groupName, routePrefix).Inc()
+	} else {
+		p.metrics.RouteFailure.WithLabelValues(groupName, routePrefix).Inc()
+	}
 }
 
 func (p *Proxy) recordFailure(group *runtime.GroupRuntime, up *upstream.State, errType string, status int) {
@@ -272,6 +306,41 @@ func statusLabel(status int) string {
 		return "0"
 	}
 	return strconv.Itoa(status)
+}
+
+func isSuccessStatus(status int) bool {
+	return status >= 200 && status < 400
+}
+
+func shouldCacheStatus(status int) bool {
+	return isSuccessStatus(status)
+}
+
+func cacheEntryFromResponse(resp responseData) cache.Entry {
+	headers := make([]cache.Header, 0, len(resp.headers))
+	for _, kv := range resp.headers {
+		headers = append(headers, cache.Header{
+			Key:   string(kv[0]),
+			Value: string(kv[1]),
+		})
+	}
+	return cache.Entry{
+		Status:  resp.status,
+		Headers: headers,
+		Body:    append([]byte(nil), resp.body...),
+	}
+}
+
+func responseFromCache(entry cache.Entry) responseData {
+	headers := make([][2][]byte, 0, len(entry.Headers))
+	for _, header := range entry.Headers {
+		headers = append(headers, [2][]byte{[]byte(header.Key), []byte(header.Value)})
+	}
+	return responseData{
+		status:  entry.Status,
+		headers: headers,
+		body:    append([]byte(nil), entry.Body...),
+	}
 }
 
 func classifyError(err error) string {

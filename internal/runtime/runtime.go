@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/nerdneilsfield/RSSHub-Gateway/internal/cache"
 	"github.com/nerdneilsfield/RSSHub-Gateway/internal/config"
 	"github.com/nerdneilsfield/RSSHub-Gateway/internal/health"
 	"github.com/nerdneilsfield/RSSHub-Gateway/internal/lb"
@@ -22,6 +23,9 @@ type Runtime struct {
 	Auth         config.GatewayAuthConfig
 	Metrics      config.MetricsConfig
 	Pprof        config.PprofConfig
+	Cache        config.CacheConfig
+	Reload       config.ReloadConfig
+	CacheStore   cache.Store
 	Short        *short.Runtime
 	Failover     config.FailoverConfig
 	Server       config.ServerConfig
@@ -43,7 +47,7 @@ type GroupRuntime struct {
 	PassiveEject   config.PassiveEjectConfig
 }
 
-func Build(cfg *config.Config, m *metrics.Metrics, logger *zap.Logger) (*Runtime, error) {
+func Build(cfg *config.Config, m *metrics.Metrics, logger *zap.Logger, store cache.Store) (*Runtime, error) {
 	groups := make(map[string]*GroupRuntime, len(cfg.Groups))
 	routes := make([]router.Route, 0, len(cfg.Groups))
 
@@ -104,6 +108,9 @@ func Build(cfg *config.Config, m *metrics.Metrics, logger *zap.Logger) (*Runtime
 		Auth:         cfg.GatewayAuth,
 		Metrics:      cfg.Metrics,
 		Pprof:        cfg.Pprof,
+		Cache:        cfg.Cache,
+		Reload:       cfg.Reload,
+		CacheStore:   store,
 		Short:        short.NewRuntime(cfg.Short.Enabled, cfg.Short.Path, shortEntries),
 		Failover:     cfg.Failover,
 		Server:       cfg.Server,
@@ -125,6 +132,9 @@ func (r *Runtime) Stop() {
 		return
 	default:
 		close(r.stop)
+	}
+	if r.CacheStore != nil {
+		_ = r.CacheStore.Close()
 	}
 }
 

@@ -14,6 +14,8 @@ type Config struct {
 	GatewayAuth GatewayAuthConfig `yaml:"gateway_auth"`
 	Metrics     MetricsConfig     `yaml:"metrics"`
 	Pprof       PprofConfig       `yaml:"pprof"`
+	Cache       CacheConfig       `yaml:"cache"`
+	Reload      ReloadConfig      `yaml:"reload"`
 	Short       ShortConfig       `yaml:"short"`
 	Routing     RoutingConfig     `yaml:"routing"`
 	Failover    FailoverConfig    `yaml:"failover"`
@@ -43,6 +45,34 @@ type PprofConfig struct {
 	Enabled   bool   `yaml:"enabled"`
 	Path      string `yaml:"path"`
 	AccessKey string `yaml:"accesskey"`
+}
+
+type CacheConfig struct {
+	Enabled       bool        `yaml:"enabled"`
+	Provider      string      `yaml:"provider"`
+	TTLMS         int         `yaml:"ttl_ms"`
+	MaxItemBytes  int         `yaml:"max_item_bytes"`
+	MaxTotalBytes int         `yaml:"max_total_bytes"`
+	Redis         RedisConfig `yaml:"redis"`
+}
+
+type RedisConfig struct {
+	Addr           string `yaml:"addr"`
+	Password       string `yaml:"password"`
+	DB             int    `yaml:"db"`
+	DialTimeoutMS  int    `yaml:"dial_timeout_ms"`
+	ReadTimeoutMS  int    `yaml:"read_timeout_ms"`
+	WriteTimeoutMS int    `yaml:"write_timeout_ms"`
+	KeyPrefix      string `yaml:"key_prefix"`
+}
+
+type ReloadConfig struct {
+	Auto AutoReloadConfig `yaml:"auto"`
+}
+
+type AutoReloadConfig struct {
+	Enabled    bool `yaml:"enabled"`
+	IntervalMS int  `yaml:"interval_ms"`
 }
 
 type ShortConfig struct {
@@ -145,6 +175,33 @@ func (c *Config) applyDefaults() {
 	if c.Short.Path == "" {
 		c.Short.Path = "/short"
 	}
+	if c.Cache.TTLMS == 0 {
+		c.Cache.TTLMS = 3600000
+	}
+	if c.Cache.MaxItemBytes == 0 {
+		c.Cache.MaxItemBytes = 2 * 1024 * 1024
+	}
+	if c.Cache.MaxTotalBytes == 0 {
+		c.Cache.MaxTotalBytes = 50 * 1024 * 1024
+	}
+	if c.Cache.Provider == "" && c.Cache.Enabled {
+		c.Cache.Provider = "memory"
+	}
+	if c.Cache.Redis.DialTimeoutMS == 0 {
+		c.Cache.Redis.DialTimeoutMS = 1000
+	}
+	if c.Cache.Redis.ReadTimeoutMS == 0 {
+		c.Cache.Redis.ReadTimeoutMS = 1000
+	}
+	if c.Cache.Redis.WriteTimeoutMS == 0 {
+		c.Cache.Redis.WriteTimeoutMS = 1000
+	}
+	if c.Cache.Redis.KeyPrefix == "" {
+		c.Cache.Redis.KeyPrefix = "rsshub_gateway"
+	}
+	if c.Reload.Auto.Enabled && c.Reload.Auto.IntervalMS == 0 {
+		c.Reload.Auto.IntervalMS = 30000
+	}
 	if c.GatewayAuth.Enabled && !c.GatewayAuth.AcceptKey && !c.GatewayAuth.AcceptCode {
 		c.GatewayAuth.AcceptKey = true
 		c.GatewayAuth.AcceptCode = true
@@ -193,6 +250,10 @@ func (c *Config) normalize() {
 	c.Pprof.Path = strings.TrimSpace(c.Pprof.Path)
 	c.Short.Path = normalizePathPrefix(c.Short.Path)
 	c.GatewayAuth.BypassPaths = normalizePaths(c.GatewayAuth.BypassPaths)
+	c.Cache.Provider = strings.ToLower(strings.TrimSpace(c.Cache.Provider))
+	c.Cache.Redis.Addr = strings.TrimSpace(c.Cache.Redis.Addr)
+	c.Cache.Redis.Password = strings.TrimSpace(c.Cache.Redis.Password)
+	c.Cache.Redis.KeyPrefix = strings.TrimSpace(c.Cache.Redis.KeyPrefix)
 	for i := range c.Short.Entries {
 		c.Short.Entries[i].Name = strings.TrimSpace(c.Short.Entries[i].Name)
 		c.Short.Entries[i].Target = strings.TrimSpace(c.Short.Entries[i].Target)
@@ -281,6 +342,33 @@ func (c *Config) validate() error {
 		if c.Pprof.Path == "" || !strings.HasPrefix(c.Pprof.Path, "/") {
 			return fmt.Errorf("pprof.path must start with /")
 		}
+	}
+	if c.Cache.Enabled {
+		switch c.Cache.Provider {
+		case "memory", "redis":
+		default:
+			return fmt.Errorf("cache.provider must be memory or redis")
+		}
+		if c.Cache.TTLMS <= 0 {
+			return fmt.Errorf("cache.ttl_ms must be > 0")
+		}
+		if c.Cache.MaxItemBytes <= 0 {
+			return fmt.Errorf("cache.max_item_bytes must be > 0")
+		}
+		if c.Cache.MaxTotalBytes <= 0 {
+			return fmt.Errorf("cache.max_total_bytes must be > 0")
+		}
+		if c.Cache.Provider == "redis" {
+			if c.Cache.Redis.Addr == "" {
+				return fmt.Errorf("cache.redis.addr is required")
+			}
+			if c.Cache.Redis.DialTimeoutMS <= 0 || c.Cache.Redis.ReadTimeoutMS <= 0 || c.Cache.Redis.WriteTimeoutMS <= 0 {
+				return fmt.Errorf("cache.redis timeouts must be > 0")
+			}
+		}
+	}
+	if c.Reload.Auto.Enabled && c.Reload.Auto.IntervalMS <= 0 {
+		return fmt.Errorf("reload.auto.interval_ms must be > 0")
 	}
 	if c.Short.Enabled {
 		if c.Short.Path == "" || !strings.HasPrefix(c.Short.Path, "/") {

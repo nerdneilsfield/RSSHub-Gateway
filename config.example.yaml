@@ -57,6 +57,58 @@ pprof:
   # 中文: pprof 访问密钥（query）
   accesskey: "PPROF_KEY_123"
 
+# EN: response cache
+# 中文: 响应缓存
+cache:
+  # EN: enable cache
+  # 中文: 是否启用缓存
+  enabled: false
+  # EN: provider (memory or redis)
+  # 中文: 缓存类型（memory 或 redis）
+  provider: "memory"
+  # EN: cache TTL in milliseconds
+  # 中文: 缓存 TTL（毫秒）
+  ttl_ms: 3600000
+  # EN: max response size to cache (bytes)
+  # 中文: 单条响应最大缓存大小（字节）
+  max_item_bytes: 2097152
+  # EN: max total cache size (bytes, memory only)
+  # 中文: 内存缓存最大总大小（字节）
+  max_total_bytes: 52428800
+  redis:
+    # EN: Redis address
+    # 中文: Redis 地址
+    addr: "127.0.0.1:6379"
+    # EN: Redis password (optional)
+    # 中文: Redis 密码（可选）
+    password: ""
+    # EN: Redis DB index
+    # 中文: Redis DB 索引
+    db: 0
+    # EN: dial timeout in milliseconds
+    # 中文: 连接超时（毫秒）
+    dial_timeout_ms: 1000
+    # EN: read timeout in milliseconds
+    # 中文: 读取超时（毫秒）
+    read_timeout_ms: 1000
+    # EN: write timeout in milliseconds
+    # 中文: 写入超时（毫秒）
+    write_timeout_ms: 1000
+    # EN: key prefix
+    # 中文: key 前缀
+    key_prefix: "rsshub_gateway"
+
+# EN: reload settings
+# 中文: 重载设置
+reload:
+  auto:
+    # EN: enable auto reload polling
+    # 中文: 是否启用自动轮询重载
+    enabled: false
+    # EN: polling interval in milliseconds
+    # 中文: 轮询间隔（毫秒）
+    interval_ms: 30000
+
 # EN: short subscription redirects
 # 中文: 订阅缩写跳转
 short:
