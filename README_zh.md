@@ -5,32 +5,37 @@
 [![Release](https://img.shields.io/github/v/release/nerdneilsfield/RSSHub-Gateway?include_prereleases)](https://github.com/nerdneilsfield/RSSHub-Gateway/releases)
 [![License](https://img.shields.io/github/license/nerdneilsfield/RSSHub-Gateway)](LICENSE)
 
-一个入口，掌控多套 RSSHub 与 Upvote RSS。保持 RSSHub 路由兼容，
-同时提供路由分组、负载均衡、健康检查、可观测性与热更新，便于稳定上线与运维。
+一个入口，掌控多套 RSSHub 与 Upvote RSS。RSSHub-Gateway 是面向生产的
+反向代理与调度层，保持 RSSHub 路由兼容，同时实现可观测与可运维。
 
-一眼了解：
-- Go + Fiber + fasthttp，面向低延迟代理
-- 网关 key/code 鉴权 + RSSHub 安全 code 注入
-- 健康检查、被动剔除、重试与回退
-- Prometheus + pprof + JSON 日志 + 热更新
+为什么团队选它：
+- 一个稳定入口覆盖多套上游实例
+- 前缀路由 + 组内负载均衡 + 健康检查
+- 网关鉴权兼容 RSSHub code 机制
+- Prometheus + pprof + JSON 结构化日志
+- 热加载 + 缓存，适合长期运行
 
 [English README](README.md)
 
 ## 亮点一览
 - 多后端路由：`/rsshub/` -> RSSHub，`/upvote/` -> Upvote RSS
 - 路由分组：按前缀 allow/deny，最长前缀优先
-- 组内负载均衡：平滑加权轮询（WRR）或 hash(path)
-- 网关鉴权：`?key=` 或 `?code=md5(path+key)`
-- 上游注入：剥离客户端 key/code，仅 RSSHub 注入 upstream code
 - 订阅缩写：`/short/{name}` 支持 `method: 301|302|proxy`
-- 首页：`/` 渲染 README.md（中文用 `/?lang=zh` 或 `/zh`）
-- Wiki：`/wiki` 提供 Qoder RepoWiki（Mermaid/KaTeX 走 CDN）
+- 网关鉴权：`?key=` 或 `?code=md5(path+key)`
 - 健康检查 + 被动剔除 + 重试 + fallback
-- Prometheus 指标（accesskey 保护）
-- pprof 调试端点（accesskey 保护）
-- JSON 结构化日志
+- Prometheus 指标、pprof 调试、JSON 结构化日志
 - SIGHUP 热加载（失败回滚）
 - 响应缓存（memory/redis）+ 自动轮询重载
+- 内置文档：`/` 首页与 `/wiki` RepoWiki
+
+提示：在已部署的实例中访问 `/wiki` 可阅读完整项目指南。
+
+## 核心概念
+- **路由与分组**：最长前缀匹配、组内负载均衡、可选 `strip_prefix`
+- **上游池**：主动健康检查 + 被动剔除，保障快速故障切换
+- **鉴权**：网关 key/code 校验，RSSHub 才注入上游 code
+- **短链**：内部/外部目标，安全拼接查询参数
+- **可观测**：指标、pprof、访问日志开箱即用
 
 ## 典型场景
 - 用一个稳定入口承载多个 RSSHub 集群

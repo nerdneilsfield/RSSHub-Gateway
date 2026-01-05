@@ -5,14 +5,15 @@
 [![Release](https://img.shields.io/github/v/release/nerdneilsfield/RSSHub-Gateway?include_prereleases)](https://github.com/nerdneilsfield/RSSHub-Gateway/releases)
 [![License](https://img.shields.io/github/license/nerdneilsfield/RSSHub-Gateway)](LICENSE)
 
-One gateway, many feeds. Keep RSSHub and Upvote RSS stable under load with routing,
-auth, health checks, and first-class observability, while staying RSSHub-compatible.
+One gateway, many feeds. RSSHub-Gateway is a production-ready reverse proxy for
+RSSHub and Upvote RSS that keeps feed URLs stable while scaling horizontally.
 
-At a glance:
-- Go + Fiber + fasthttp, optimized for low-latency proxying
-- Gateway key/code auth with safe RSSHub code injection
-- Active health checks, passive eject, retry, and fallback
-- Prometheus metrics, pprof, JSON logs, and hot reload
+Why teams use it:
+- Keep a single stable feed URL across multiple upstreams
+- Route by prefix with per-group load balancing and health checks
+- Enforce gateway auth while staying RSSHub-compatible
+- Observe everything with metrics, pprof, and structured logs
+- Reload safely and cache responses in memory or Redis
 
 [中文说明](README_zh.md)
 
@@ -20,13 +21,21 @@ At a glance:
 - Multi-backend routing: `/rsshub/` for RSSHub, `/upvote/` for Upvote RSS
 - Prefix-based grouping with longest-match selection and per-group LB
 - Short subscriptions: `/short/{name}` with method `301`/`302`/`proxy`
-- Homepage: `/` renders README.md (use `/?lang=zh` or `/zh` for Chinese)
-- Wiki: `/wiki` serves the Qoder RepoWiki (Mermaid/KaTeX via CDN)
 - Gateway auth: `?key=` or `?code=md5(path+key)` + RSSHub code injection
-- Active health checks + passive eject + retry + fallback
+- Health checks + passive eject + retry + fallback
 - Prometheus metrics, pprof, JSON access/event logs
 - SIGHUP config reload with rollback on failure
 - Response cache (memory/redis) + auto reload polling
+- Built-in docs: `/` (README) and `/wiki` (Qoder RepoWiki)
+
+Tip: in a deployed instance, open `/wiki` to read the full project guide.
+
+## Core Concepts
+- **Routes and groups**: longest-prefix match, per-group LB, optional `strip_prefix`
+- **Upstreams**: active health probes + passive eject ensure safe failover
+- **Auth**: gateway key/code validation with RSSHub code injection only when needed
+- **Short links**: internal or external targets with safe query passthrough
+- **Observability**: metrics, pprof, and JSON access logs out of the box
 
 ## Typical Use Cases
 - One stable URL for multiple RSSHub clusters
