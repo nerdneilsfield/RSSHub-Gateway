@@ -16,6 +16,7 @@ COPY --from=build /out/rsshub-gateway /app/rsshub-gateway
 COPY config.example.yaml /app/config.example.yaml
 COPY README.md /app/README.md
 COPY README_zh.md /app/README_zh.md
+COPY --from=build /src/.qoder/repowiki/zh /app/.qoder/repowiki/zh
 
 EXPOSE 8080
 ENTRYPOINT ["/app/rsshub-gateway", "serve", "-c", "/app/config.example.yaml"]

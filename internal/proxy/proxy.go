@@ -20,6 +20,7 @@ import (
 	"github.com/nerdneilsfield/RSSHub-Gateway/internal/runtime"
 	"github.com/nerdneilsfield/RSSHub-Gateway/internal/short"
 	"github.com/nerdneilsfield/RSSHub-Gateway/internal/upstream"
+	"github.com/nerdneilsfield/RSSHub-Gateway/internal/wiki"
 	"github.com/valyala/fasthttp"
 	"go.uber.org/zap"
 )
@@ -30,18 +31,28 @@ type Proxy struct {
 	logger  *zap.Logger
 	client  *fasthttp.Client
 	home    *home.Renderer
+	wiki    fiber.Handler
+	wikiURL string
 
 	externalClients sync.Map
 }
 
-func New(manager *runtime.Manager, m *metrics.Metrics, logger *zap.Logger) *Proxy {
-	return &Proxy{
+func New(manager *runtime.Manager, m *metrics.Metrics, logger *zap.Logger, gitCommit string) *Proxy {
+	p := &Proxy{
 		manager: manager,
 		metrics: m,
 		logger:  logger,
 		client:  &fasthttp.Client{},
 		home:    home.New("README.md", "README_zh.md", logger),
 	}
+	handler, mount, err := wiki.NewHandler("", gitCommit, "https://github.com/nerdneilsfield/RSSHub-Gateway", logger)
+	if err != nil && logger != nil {
+		logger.Warn("wiki disabled", zap.Error(err))
+	} else {
+		p.wiki = handler
+		p.wikiURL = mount
+	}
+	return p
 }
 
 func (p *Proxy) Serve(c *fiber.Ctx) error {
@@ -57,6 +68,9 @@ func (p *Proxy) Serve(c *fiber.Ctx) error {
 		if path == "/" || path == "/zh" || path == "/zh/" || path == "/en" || path == "/en/" {
 			return p.home.Serve(c)
 		}
+	}
+	if p.wiki != nil && matchesPathPrefix(path, p.wikiURL) {
+		return p.wiki(c)
 	}
 	if rt.Metrics.Enabled && method == fiber.MethodGet && path == rt.Metrics.Path {
 		if p.metrics == nil {
@@ -573,6 +587,16 @@ func rewritePath(path string, stripPrefix string) string {
 		return "/" + trimmed
 	}
 	return trimmed
+}
+
+func matchesPathPrefix(path string, prefix string) bool {
+	if prefix == "" {
+		return false
+	}
+	if path == prefix {
+		return true
+	}
+	return strings.HasPrefix(path, prefix+"/")
 }
 
 func buildChain(groupName string, rt *runtime.Runtime) []string {

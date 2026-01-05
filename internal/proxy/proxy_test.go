@@ -101,7 +101,7 @@ groups:
 	}
 
 	app := fiber.New()
-	app.All("/*", New(mgr, m, zap.NewNop()).Serve)
+	app.All("/*", New(mgr, m, zap.NewNop(), "test").Serve)
 
 	req := httptest.NewRequest(http.MethodGet, "http://localhost/test", nil)
 	resp, err := app.Test(req)
@@ -183,7 +183,7 @@ groups:
 	}
 
 	app := fiber.New()
-	app.All("/*", New(mgr, m, zap.NewNop()).Serve)
+	app.All("/*", New(mgr, m, zap.NewNop(), "test").Serve)
 
 	req := httptest.NewRequest(http.MethodGet, "http://localhost/rsshub/qdaily/column/59?key=BAD", nil)
 	resp, err := app.Test(req)
@@ -262,7 +262,7 @@ groups:
 	}
 
 	app := fiber.New()
-	app.All("/*", New(mgr, m, zap.NewNop()).Serve)
+	app.All("/*", New(mgr, m, zap.NewNop(), "test").Serve)
 
 	req := httptest.NewRequest(http.MethodGet, "http://localhost/upvote/?platform=reddit&key=BAD&code=BAD", nil)
 	resp, err := app.Test(req)
@@ -325,7 +325,7 @@ groups:
 	}
 
 	app := fiber.New()
-	app.All("/*", New(mgr, m, zap.NewNop()).Serve)
+	app.All("/*", New(mgr, m, zap.NewNop(), "test").Serve)
 
 	badReq := httptest.NewRequest(http.MethodGet, "http://localhost/metrics?accesskey=BAD", nil)
 	badResp, err := app.Test(badReq)
@@ -403,7 +403,7 @@ groups:
 	}
 
 	app := fiber.New()
-	app.All("/*", New(mgr, m, zap.NewNop()).Serve)
+	app.All("/*", New(mgr, m, zap.NewNop(), "test").Serve)
 
 	req := httptest.NewRequest(http.MethodGet, "http://localhost/foo/bar", nil)
 	resp, err := app.Test(req)
@@ -492,7 +492,7 @@ groups:
 	}
 
 	app := fiber.New()
-	app.All("/*", New(mgr, m, zap.NewNop()).Serve)
+	app.All("/*", New(mgr, m, zap.NewNop(), "test").Serve)
 
 	okReq := httptest.NewRequest(http.MethodGet, "http://localhost/path?key=GATE", nil)
 	okResp, err := app.Test(okReq)
@@ -577,7 +577,7 @@ groups:
 	}
 
 	app := fiber.New()
-	app.All("/*", New(mgr, m, zap.NewNop()).Serve)
+	app.All("/*", New(mgr, m, zap.NewNop(), "test").Serve)
 
 	req1 := httptest.NewRequest(http.MethodGet, "http://localhost/foo?key=ONE&bar=1", nil)
 	resp1, err := app.Test(req1)
@@ -665,7 +665,7 @@ groups:
 	}
 
 	app := fiber.New()
-	app.All("/*", New(mgr, m, zap.NewNop()).Serve)
+	app.All("/*", New(mgr, m, zap.NewNop(), "test").Serve)
 
 	badReq := httptest.NewRequest(http.MethodGet, "http://localhost/debug/pprof/?accesskey=BAD", nil)
 	badResp, err := app.Test(badReq)
@@ -747,7 +747,7 @@ groups:
 	}
 
 	app := fiber.New()
-	app.All("/*", New(mgr, m, zap.NewNop()).Serve)
+	app.All("/*", New(mgr, m, zap.NewNop(), "test").Serve)
 
 	req := httptest.NewRequest(http.MethodGet, "http://localhost/short/latepost?key=K", nil)
 	resp, err := app.Test(req)
@@ -823,7 +823,7 @@ groups:
 	}
 
 	app := fiber.New()
-	app.All("/*", New(mgr, m, zap.NewNop()).Serve)
+	app.All("/*", New(mgr, m, zap.NewNop(), "test").Serve)
 
 	req := httptest.NewRequest(http.MethodGet, "http://localhost/short/ext?code=ABC&bar=2", nil)
 	resp, err := app.Test(req)
@@ -900,7 +900,7 @@ groups:
 	}
 
 	app := fiber.New()
-	app.All("/*", New(mgr, m, zap.NewNop()).Serve)
+	app.All("/*", New(mgr, m, zap.NewNop(), "test").Serve)
 
 	req := httptest.NewRequest(http.MethodGet, "http://localhost/short/ext?code=ABC&bar=2", nil)
 	resp, err := app.Test(req)
@@ -993,7 +993,7 @@ groups:
 	}
 
 	app := fiber.New()
-	app.All("/*", New(mgr, m, zap.NewNop()).Serve)
+	app.All("/*", New(mgr, m, zap.NewNop(), "test").Serve)
 
 	badReq := httptest.NewRequest(http.MethodGet, "http://localhost/short/latepost", nil)
 	badResp, err := app.Test(badReq)
@@ -1097,7 +1097,7 @@ groups:
 		t.Fatalf("manager init: %v", err)
 	}
 
-	p := New(mgr, m, zap.NewNop())
+	p := New(mgr, m, zap.NewNop(), "test")
 	target, err := url.Parse(up.URL)
 	if err != nil {
 		t.Fatalf("parse url: %v", err)
@@ -1217,7 +1217,7 @@ groups:
 	}
 
 	app := fiber.New()
-	app.All("/*", New(mgr, m, zap.NewNop()).Serve)
+	app.All("/*", New(mgr, m, zap.NewNop(), "test").Serve)
 
 	req := httptest.NewRequest(http.MethodGet, "http://localhost/short/missing", nil)
 	resp, err := app.Test(req)
@@ -1282,7 +1282,7 @@ groups:
 	}
 
 	app := fiber.New()
-	app.All("/*", New(mgr, m, zap.NewNop()).Serve)
+	app.All("/*", New(mgr, m, zap.NewNop(), "test").Serve)
 
 	req := httptest.NewRequest(http.MethodGet, "http://localhost/", nil)
 	resp, err := app.Test(req)
@@ -1377,7 +1377,7 @@ groups:
 	}
 
 	app := fiber.New()
-	app.All("/*", New(mgr, m, zap.NewNop()).Serve)
+	app.All("/*", New(mgr, m, zap.NewNop(), "test").Serve)
 
 	req := httptest.NewRequest(http.MethodGet, "http://localhost/retry", nil)
 	resp, err := app.Test(req)

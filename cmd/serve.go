@@ -15,7 +15,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func newServeCmd() *cobra.Command {
+func newServeCmd(gitCommit string) *cobra.Command {
 	var configPath string
 
 	cmd := &cobra.Command{
@@ -35,7 +35,7 @@ func newServeCmd() *cobra.Command {
 			}
 
 			app := fiber.New()
-			proxyHandler := proxy.New(mgr, m, logger)
+			proxyHandler := proxy.New(mgr, m, logger, gitCommit)
 			app.All("/*", proxyHandler.Serve)
 
 			signalChan := make(chan os.Signal, 1)

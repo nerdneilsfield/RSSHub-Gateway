@@ -24,6 +24,7 @@
 - 上游注入：剥离客户端 key/code，仅 RSSHub 注入 upstream code
 - 订阅缩写：`/short/{name}` 支持 `method: 301|302|proxy`
 - 首页：`/` 渲染 README.md（中文用 `/?lang=zh` 或 `/zh`）
+- Wiki：`/wiki` 提供 Qoder RepoWiki（Mermaid/KaTeX 走 CDN）
 - 健康检查 + 被动剔除 + 重试 + fallback
 - Prometheus 指标（accesskey 保护）
 - pprof 调试端点（accesskey 保护）

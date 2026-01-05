@@ -21,6 +21,7 @@ At a glance:
 - Prefix-based grouping with longest-match selection and per-group LB
 - Short subscriptions: `/short/{name}` with method `301`/`302`/`proxy`
 - Homepage: `/` renders README.md (use `/?lang=zh` or `/zh` for Chinese)
+- Wiki: `/wiki` serves the Qoder RepoWiki (Mermaid/KaTeX via CDN)
 - Gateway auth: `?key=` or `?code=md5(path+key)` + RSSHub code injection
 - Active health checks + passive eject + retry + fallback
 - Prometheus metrics, pprof, JSON access/event logs

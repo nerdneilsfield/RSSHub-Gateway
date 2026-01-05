@@ -30,6 +30,8 @@ gateway_auth:
     - "/logo.png"
     - "/robots.txt"
     - "/manifest.json"
+    - "/wiki"
+    - "/wiki/"
 
 # EN: Prometheus metrics
 # 中文: Prometheus 指标

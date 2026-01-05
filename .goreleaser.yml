@@ -46,6 +46,7 @@ archives:
         format: zip
     files:
       - "config.example.yaml"
+      - ".qoder/repowiki/zh/**"
 
 release:
   github:
@@ -70,6 +71,7 @@ dockers_v2:
       - "config.example.yaml"
       - "README.md"
       - "README_zh.md"
+      - ".qoder/repowiki/zh"
     labels:
       "io.artifacthub.package.readme-url": "https://raw.githubusercontent.com/nerdneilsfield/RSSHub-Gateway/master/README.md"
       "io.artifacthub.package.maintainers": "[{\"name\":\"dengqqi\",\"email\":\"dengqqi935@gmail.com\"}]"
