@@ -1125,7 +1125,7 @@ groups:
 		if data.path != "/feed" {
 			t.Fatalf("unexpected path: %s", data.path)
 		}
-		if data.ua != "RSSHub-Gateway/short" {
+		if data.ua != "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36" {
 			t.Fatalf("unexpected user-agent: %s", data.ua)
 		}
 		if data.sni == "" && net.ParseIP(expectedHost) == nil {

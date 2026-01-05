@@ -444,9 +444,7 @@ func (p *Proxy) forwardExternal(c *fiber.Ctx, uri string, timeout time.Duration)
 	if err == nil && parsed.Host != "" {
 		req.Header.SetHost(parsed.Host)
 	}
-	if len(req.Header.UserAgent()) == 0 {
-		req.Header.SetUserAgent("RSSHub-Gateway/short")
-	}
+	applyExternalDefaults(&req.Header)
 
 	client := p.externalClient(parsed)
 	err = client.DoTimeout(req, res, timeout)
@@ -489,6 +487,34 @@ func (p *Proxy) externalClient(target *url.URL) *fasthttp.Client {
 	}
 	client, _ := p.externalClients.LoadOrStore(key, created)
 	return client.(*fasthttp.Client)
+}
+
+func applyExternalDefaults(header *fasthttp.RequestHeader) {
+	if header == nil {
+		return
+	}
+	header.SetUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36")
+	setHeaderIfEmpty(header, "Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/jxl,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7")
+	setHeaderIfEmpty(header, "Accept-Encoding", "gzip, deflate, br, zstd")
+	setHeaderIfEmpty(header, "Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8,en-US;q=0.7")
+	setHeaderIfEmpty(header, "Cache-Control", "no-cache")
+	setHeaderIfEmpty(header, "Pragma", "no-cache")
+	setHeaderIfEmpty(header, "DNT", "1")
+	setHeaderIfEmpty(header, "Sec-CH-UA", "\"Not?A_Brand\";v=\"99\", \"Chromium\";v=\"130\"")
+	setHeaderIfEmpty(header, "Sec-CH-UA-Mobile", "?0")
+	setHeaderIfEmpty(header, "Sec-CH-UA-Platform", "\"Windows\"")
+	setHeaderIfEmpty(header, "Sec-Fetch-Dest", "document")
+	setHeaderIfEmpty(header, "Sec-Fetch-Mode", "navigate")
+	setHeaderIfEmpty(header, "Sec-Fetch-Site", "none")
+	setHeaderIfEmpty(header, "Sec-Fetch-User", "?1")
+	setHeaderIfEmpty(header, "Sec-GPC", "1")
+	setHeaderIfEmpty(header, "Upgrade-Insecure-Requests", "1")
+}
+
+func setHeaderIfEmpty(header *fasthttp.RequestHeader, key string, value string) {
+	if len(header.Peek(key)) == 0 {
+		header.Set(key, value)
+	}
 }
 
 func buildExternalURL(target string, args *fasthttp.Args) (string, error) {
