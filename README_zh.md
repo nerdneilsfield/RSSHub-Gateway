@@ -22,7 +22,7 @@
 - 组内负载均衡：平滑加权轮询（WRR）或 hash(path)
 - 网关鉴权：`?key=` 或 `?code=md5(path+key)`
 - 上游注入：剥离客户端 key/code，仅 RSSHub 注入 upstream code
-- 订阅缩写：`/short/{name}` 301 跳转并透传 query
+- 订阅缩写：`/short/{name}` 支持 `method: 301|302|proxy`
 - 首页：`/` 渲染 README.md（中文用 `/?lang=zh` 或 `/zh`）
 - 健康检查 + 被动剔除 + 重试 + fallback
 - Prometheus 指标（accesskey 保护）
@@ -132,7 +132,7 @@ docker run --rm -p 8080:8080 \
 - 启用 pprof 时需要配置 `pprof.accesskey`。
 - 缓存需要配置 provider（`memory` 或 `redis`）、TTL 和大小限制；仅缓存 GET 2xx/3xx。
 - 自动轮询重载通过配置 hash 对比（`reload.auto.enabled` + `interval_ms`）。
-- 启用 short 时 `short.path` 必须以 `/` 开头，且 name 唯一。
+- 启用 short 时 `short.path` 必须以 `/` 开头，name 唯一，method 必须为 `301`/`302`/`proxy`；外部目标会剥离 `key`/`code`。
 </details>
 
 <details>
@@ -190,8 +190,10 @@ short:
   entries:
     - name: "latepost"
       target: "/rsshub/latepost/4"
+      method: "301"
     - name: "reddit-top"
       target: "https://example.com/rss?platform=reddit"
+      method: "302"
 
 routing:
   default_group: "rsshub-public"
@@ -278,15 +280,18 @@ http://127.0.0.1:8080/upvote/?platform=reddit&key=ACCESS_KEY
 
 ## 订阅缩写
 
-short 入口返回 301 并将原始 query 追加到目标 URL。
-如果目标已包含 query，会用 `&` 追加，不会覆盖已有参数。
+short 入口支持 `method: 301|302|proxy`。
+重定向会把原始 query 追加到目标 URL；外部目标会剥离 `key`/`code` 以避免泄露。proxy 会直接转发请求（内部目标保留 key/code，外部目标剥离 key/code）。
 
 ```text
 GET /short/latepost?key=ACCESS_KEY
 -> 301 Location: /rsshub/latepost/4?key=ACCESS_KEY
 
-GET /short/reddit-top?code=ABC
--> 301 Location: https://example.com/rss?platform=reddit&code=ABC
+GET /short/reddit-top?sort=top&key=ACCESS_KEY
+-> 302 Location: https://example.com/rss?platform=reddit&sort=top
+
+GET /short/cdt?key=ACCESS_KEY
+-> proxy https://chinadigitaltimes.net/chinese/feed
 ```
 
 ## 路由与负载均衡

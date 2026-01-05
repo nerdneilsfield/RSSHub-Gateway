@@ -5,10 +5,22 @@ import "strings"
 type Runtime struct {
 	Enabled bool
 	Path    string
-	Targets map[string]string
+	Targets map[string]Entry
 }
 
-func NewRuntime(enabled bool, path string, entries map[string]string) *Runtime {
+type Entry struct {
+	Target   string
+	Method   string
+	Internal bool
+}
+
+type Result struct {
+	Target   string
+	Method   string
+	Internal bool
+}
+
+func NewRuntime(enabled bool, path string, entries map[string]Entry) *Runtime {
 	return &Runtime{
 		Enabled: enabled,
 		Path:    path,
@@ -16,22 +28,22 @@ func NewRuntime(enabled bool, path string, entries map[string]string) *Runtime {
 	}
 }
 
-func Resolve(rt *Runtime, path string, rawQuery string) (location string, matched bool, ok bool) {
+func Resolve(rt *Runtime, path string) (Result, bool, bool) {
 	if rt == nil || !rt.Enabled {
-		return "", false, false
+		return Result{}, false, false
 	}
 	if !matchesPath(path, rt.Path) {
-		return "", false, false
+		return Result{}, false, false
 	}
 	name := extractName(path, rt.Path)
 	if name == "" {
-		return "", true, false
+		return Result{}, true, false
 	}
-	target, exists := rt.Targets[name]
+	entry, exists := rt.Targets[name]
 	if !exists {
-		return "", true, false
+		return Result{}, true, false
 	}
-	return appendQuery(target, rawQuery), true, true
+	return Result{Target: entry.Target, Method: entry.Method, Internal: entry.Internal}, true, true
 }
 
 func matchesPath(path string, base string) bool {
@@ -63,7 +75,7 @@ func extractName(path string, base string) string {
 	return name
 }
 
-func appendQuery(target string, rawQuery string) string {
+func AppendQuery(target string, rawQuery string) string {
 	if rawQuery == "" {
 		return target
 	}
@@ -71,4 +83,9 @@ func appendQuery(target string, rawQuery string) string {
 		return target + "&" + rawQuery
 	}
 	return target + "?" + rawQuery
+}
+
+func IsInternalTarget(target string) bool {
+	return target == "/rsshub" || strings.HasPrefix(target, "/rsshub/") ||
+		target == "/upvote" || strings.HasPrefix(target, "/upvote/")
 }

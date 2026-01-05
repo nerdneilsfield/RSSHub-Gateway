@@ -118,17 +118,27 @@ short:
   # EN: short path prefix
   # 中文: short 前缀路径
   path: "/short"
-  # EN: short entries (301 redirect with query passthrough)
-  # 中文: short 入口（301 跳转并透传 query）
+  # EN: short entries (method: 301/302/proxy)
+  # 中文: short 入口（method: 301/302/proxy）
   entries:
     - name: "latepost"
       target: "/rsshub/latepost/4"
+      method: "301"
     - name: "reddit-top"
       target: "https://example.com/rss?platform=reddit"
+      method: "302"
+    - name: "hn"
+      target: "/rsshub/hn"
+      method: "proxy"
+    - name: "upvote-reddit"
+      target: "/upvote/?platform=reddit"
+      method: "proxy"
     - name: "cdt"
       target: "https://chinadigitaltimes.net/chinese/feed"
+      method: "proxy"
     - name: "fearnation"
       target: "https://fearnation.club/rss/"
+      method: "proxy"
 
 # EN: routing defaults
 # 中文: 路由默认配置

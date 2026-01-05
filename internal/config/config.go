@@ -84,6 +84,7 @@ type ShortConfig struct {
 type ShortEntry struct {
 	Name   string `yaml:"name"`
 	Target string `yaml:"target"`
+	Method string `yaml:"method"`
 }
 
 type RoutingConfig struct {
@@ -257,6 +258,10 @@ func (c *Config) normalize() {
 	for i := range c.Short.Entries {
 		c.Short.Entries[i].Name = strings.TrimSpace(c.Short.Entries[i].Name)
 		c.Short.Entries[i].Target = strings.TrimSpace(c.Short.Entries[i].Target)
+		c.Short.Entries[i].Method = strings.ToLower(strings.TrimSpace(c.Short.Entries[i].Method))
+		if c.Short.Entries[i].Method == "" {
+			c.Short.Entries[i].Method = "301"
+		}
 	}
 	for gi := range c.Groups {
 		c.Groups[gi].Backend = strings.ToLower(strings.TrimSpace(c.Groups[gi].Backend))
@@ -386,6 +391,9 @@ func (c *Config) validate() error {
 			if !isShortTarget(entry.Target) {
 				return fmt.Errorf("short entry %s has invalid target: %s", entry.Name, entry.Target)
 			}
+			if !isShortMethod(entry.Method) {
+				return fmt.Errorf("short entry %s has invalid method: %s", entry.Name, entry.Method)
+			}
 		}
 	}
 	if c.Routing.DefaultGroup == "" {
@@ -472,4 +480,13 @@ func isShortTarget(target string) bool {
 	}
 	return target == "/rsshub" || strings.HasPrefix(target, "/rsshub/") ||
 		target == "/upvote" || strings.HasPrefix(target, "/upvote/")
+}
+
+func isShortMethod(method string) bool {
+	switch method {
+	case "301", "302", "proxy":
+		return true
+	default:
+		return false
+	}
 }

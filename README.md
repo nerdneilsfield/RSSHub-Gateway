@@ -19,7 +19,7 @@ At a glance:
 ## Highlights
 - Multi-backend routing: `/rsshub/` for RSSHub, `/upvote/` for Upvote RSS
 - Prefix-based grouping with longest-match selection and per-group LB
-- Short subscriptions: `/short/{name}` 301 redirect with query passthrough
+- Short subscriptions: `/short/{name}` with method `301`/`302`/`proxy`
 - Homepage: `/` renders README.md (use `/?lang=zh` or `/zh` for Chinese)
 - Gateway auth: `?key=` or `?code=md5(path+key)` + RSSHub code injection
 - Active health checks + passive eject + retry + fallback
@@ -128,7 +128,7 @@ The full schema lives in `config.example.yaml`.
 - Pprof requires `pprof.accesskey` when enabled.
 - Cache requires provider (`memory` or `redis`) with TTL and size limits; caches GET 2xx/3xx only.
 - Auto reload polling uses config hash compare (`reload.auto.enabled` + `interval_ms`).
-- Short requires `short.path` (starts with `/`) and unique entry names when enabled.
+- Short requires `short.path` (starts with `/`), unique entry names, and method `301`/`302`/`proxy`. External targets strip `key`/`code`.
 </details>
 
 <details>
@@ -186,8 +186,10 @@ short:
   entries:
     - name: "latepost"
       target: "/rsshub/latepost/4"
+      method: "301"
     - name: "reddit-top"
       target: "https://example.com/rss?platform=reddit"
+      method: "302"
 
 routing:
   default_group: "rsshub-public"
@@ -270,15 +272,19 @@ and compute `md5("/rsshub/latepost/4"+ACCESS_KEY)`. Key-based access is unchange
 
 ## Short Subscriptions
 
-Short entries return a 301 redirect and append the original query string to the target.
-If the target already contains query parameters, the short query is appended with `&`.
+Short entries support `method: 301|302|proxy`. Redirects append the original query string;
+external targets strip `key`/`code` to avoid leaking credentials. Proxy mode forwards the
+request directly (internal targets keep `key/code`, external targets strip them).
 
 ```text
 GET /short/latepost?key=ACCESS_KEY
 -> 301 Location: /rsshub/latepost/4?key=ACCESS_KEY
 
-GET /short/reddit-top?code=ABC
--> 301 Location: https://example.com/rss?platform=reddit&code=ABC
+GET /short/reddit-top?sort=top&key=ACCESS_KEY
+-> 302 Location: https://example.com/rss?platform=reddit&sort=top
+
+GET /short/cdt?key=ACCESS_KEY
+-> proxy https://chinadigitaltimes.net/chinese/feed
 ```
 
 Upstream injection rules:

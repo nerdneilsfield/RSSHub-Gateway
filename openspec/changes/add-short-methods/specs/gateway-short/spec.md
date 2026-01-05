@@ -8,7 +8,7 @@ The gateway SHALL support short subscription entries with a configured `method` 
 
 #### Scenario: External short redirect to https URL
 - **WHEN** a request targets `/short/{name}` with `method=302` and the short target is a full `https://...` URL
-- **THEN** the gateway responds with HTTP 302 and a Location header to the target with the original query string appended.
+- **THEN** the gateway responds with HTTP 302 and a Location header to the target with the original query string appended, excluding `key` and `code`.
 
 #### Scenario: Internal short proxy
 - **WHEN** a request targets `/short/{name}` with `method=proxy` and the short target is `/rsshub/...` or `/upvote/...`
@@ -21,9 +21,13 @@ The gateway SHALL support short subscription entries with a configured `method` 
 ### Requirement: Query Passthrough for Short Entries
 Short entries SHALL preserve query parameters in a method-specific way.
 
-#### Scenario: Redirect preserves full query string
-- **WHEN** a short request uses method `301` or `302`
+#### Scenario: Internal redirect preserves full query string
+- **WHEN** a short request uses method `301` or `302` to an internal target
 - **THEN** the Location target includes the original query string unmodified.
+
+#### Scenario: External redirect strips key/code
+- **WHEN** a short request uses method `301` or `302` to an external `https://...` target
+- **THEN** the Location target includes the original query string with `key` and `code` removed.
 
 #### Scenario: Internal proxy preserves key/code
 - **WHEN** a short request uses method `proxy` to an internal target

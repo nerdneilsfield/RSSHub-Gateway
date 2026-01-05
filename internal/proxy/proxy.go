@@ -4,13 +4,14 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/nerdneilsfield/RSSHub-Gateway/internal/cache"
 	"github.com/nerdneilsfield/RSSHub-Gateway/internal/auth"
+	"github.com/nerdneilsfield/RSSHub-Gateway/internal/cache"
 	"github.com/nerdneilsfield/RSSHub-Gateway/internal/home"
 	"github.com/nerdneilsfield/RSSHub-Gateway/internal/metrics"
 	pprofhandler "github.com/nerdneilsfield/RSSHub-Gateway/internal/pprof"
@@ -62,21 +63,46 @@ func (p *Proxy) Serve(c *fiber.Ctx) error {
 	if rt.Pprof.Enabled && pprofhandler.MatchPath(path, rt.Pprof.Path) {
 		return pprofhandler.Handle(c, rt.Pprof.Path, rt.Pprof.AccessKey)
 	}
-	if location, matched, ok := short.Resolve(rt.Short, path, c.Context().QueryArgs().String()); matched {
-		if ok {
-			c.Location(location)
-			return c.SendStatus(http.StatusMovedPermanently)
+	args := c.Context().QueryArgs()
+	effectivePath := path
+	if result, matched, ok := short.Resolve(rt.Short, path); matched {
+		if !ok {
+			return c.SendStatus(http.StatusNotFound)
 		}
-		return c.SendStatus(http.StatusNotFound)
+		switch result.Method {
+		case "301", "302":
+			redirectArgs := args
+			if !result.Internal {
+				redirectArgs = auth.RewriteUpstreamQuery(args, "", "", false)
+			}
+			location := short.AppendQuery(result.Target, redirectArgs.String())
+			c.Location(location)
+			if result.Method == "302" {
+				return c.SendStatus(http.StatusFound)
+			}
+			return c.SendStatus(http.StatusMovedPermanently)
+		case "proxy":
+			if result.Internal {
+				targetPath, targetQuery := splitTarget(result.Target)
+				if targetPath == "" {
+					return c.SendStatus(http.StatusNotFound)
+				}
+				effectivePath = targetPath
+				args = mergeQueryArgs(targetQuery, args)
+			} else {
+				return p.proxyExternal(c, rt, result.Target, args, start, method, path)
+			}
+		default:
+			return c.SendStatus(http.StatusNotFound)
+		}
 	}
 
-	args := c.Context().QueryArgs()
-	if !auth.ValidateGateway(rt.Auth, path, args) {
+	if !auth.ValidateGateway(rt.Auth, effectivePath, args) {
 		p.logAccess(start, method, path, "", "", http.StatusForbidden, 0, nil, "auth", errors.New("gateway auth failed"))
 		return c.SendStatus(http.StatusForbidden)
 	}
 
-	selection := rt.Router.Select(path)
+	selection := rt.Router.Select(effectivePath)
 	groupName := selection.Group
 	routePrefix := selection.RoutePrefix
 	cacheKey := ""
@@ -84,7 +110,7 @@ func (p *Proxy) Serve(c *fiber.Ctx) error {
 	if cacheEnabled {
 		group := rt.Groups[groupName]
 		if group != nil {
-			upstreamPath := rewritePath(path, group.StripPrefix)
+			upstreamPath := rewritePath(effectivePath, group.StripPrefix)
 			cacheKey = cache.BuildKey(upstreamPath, args)
 			if entry, ok := rt.CacheStore.GetResponse(cacheKey); ok {
 				if p.metrics != nil {
@@ -123,7 +149,7 @@ func (p *Proxy) Serve(c *fiber.Ctx) error {
 			fallbackChain = append(fallbackChain, name)
 		}
 
-		upstreamPath := rewritePath(path, group.StripPrefix)
+		upstreamPath := rewritePath(effectivePath, group.StripPrefix)
 		injectCode := group.Backend != "upvote"
 		attempts := 1
 		if rt.Failover.Retry.Enabled && (method == fiber.MethodGet || method == fiber.MethodHead) {
@@ -341,6 +367,114 @@ func responseFromCache(entry cache.Entry) responseData {
 		headers: headers,
 		body:    append([]byte(nil), entry.Body...),
 	}
+}
+
+func splitTarget(target string) (string, string) {
+	if target == "" {
+		return "", ""
+	}
+	idx := strings.Index(target, "?")
+	if idx == -1 {
+		return target, ""
+	}
+	return target[:idx], target[idx+1:]
+}
+
+func mergeQueryArgs(targetQuery string, original *fasthttp.Args) *fasthttp.Args {
+	var out fasthttp.Args
+	if targetQuery != "" {
+		values, err := url.ParseQuery(targetQuery)
+		if err == nil {
+			for key, vals := range values {
+				for _, val := range vals {
+					out.Add(key, val)
+				}
+			}
+		}
+	}
+	if original != nil {
+		original.VisitAll(func(k, v []byte) {
+			out.AddBytesKV(k, v)
+		})
+	}
+	return &out
+}
+
+func (p *Proxy) proxyExternal(c *fiber.Ctx, rt *runtime.Runtime, target string, args *fasthttp.Args, start time.Time, method string, path string) error {
+	uri, err := buildExternalURL(target, args)
+	if err != nil {
+		p.logAccess(start, method, path, "short-external", "short", http.StatusBadGateway, 0, nil, "external", err)
+		return c.SendStatus(http.StatusBadGateway)
+	}
+	timeout := time.Duration(rt.Server.TimeoutMS) * time.Millisecond
+	resp, errType, err := p.forwardExternal(c, uri, timeout)
+	status := resp.status
+	if err != nil {
+		p.recordRequestMetrics("short-external", "short", method, status, start)
+		p.logAccess(start, method, path, "short-external", "short", status, 0, nil, errType, err)
+		return c.SendStatus(status)
+	}
+	p.recordRequestMetrics("short-external", "short", method, status, start)
+	p.logAccess(start, method, path, "short-external", "short", status, 0, nil, "", nil)
+	return copyResponse(c, resp)
+}
+
+func (p *Proxy) forwardExternal(c *fiber.Ctx, uri string, timeout time.Duration) (responseData, string, error) {
+	var resp responseData
+	req := fasthttp.AcquireRequest()
+	res := fasthttp.AcquireResponse()
+	defer fasthttp.ReleaseRequest(req)
+	defer fasthttp.ReleaseResponse(res)
+
+	req.SetRequestURI(uri)
+	req.Header.SetMethodBytes(c.Context().Method())
+	req.SetBodyRaw(c.Body())
+	copyRequestHeaders(req, &c.Context().Request)
+
+	parsed, err := url.Parse(uri)
+	if err == nil && parsed.Host != "" {
+		req.Header.SetHost(parsed.Host)
+	}
+
+	err = p.client.DoTimeout(req, res, timeout)
+	if err != nil {
+		errType := classifyError(err)
+		resp.status = statusFromError(errType)
+		return resp, errType, err
+	}
+
+	resp.status = res.StatusCode()
+	resp.body = append(resp.body, res.Body()...)
+	res.Header.VisitAll(func(k, v []byte) {
+		key := string(k)
+		if isHopByHop(key) {
+			return
+		}
+		resp.headers = append(resp.headers, [2][]byte{append([]byte(nil), k...), append([]byte(nil), v...)})
+	})
+
+	return resp, "", nil
+}
+
+func buildExternalURL(target string, args *fasthttp.Args) (string, error) {
+	parsed, err := url.Parse(target)
+	if err != nil {
+		return "", err
+	}
+	sanitized := auth.RewriteUpstreamQuery(args, "", "", false)
+	extra := sanitized.String()
+	parsed.RawQuery = mergeQuery(parsed.RawQuery, extra)
+	return parsed.String(), nil
+}
+
+func mergeQuery(base string, extra string) string {
+	if base == "" {
+		return extra
+	}
+	if extra == "" {
+		return base
+	}
+	return base + "&" + extra
 }
 
 func classifyError(err error) string {

@@ -2,19 +2,21 @@ package proxy
 
 import (
 	"crypto/md5"
+	"crypto/tls"
 	"encoding/hex"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"sync/atomic"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/nerdneilsfield/RSSHub-Gateway/internal/metrics"
 	"github.com/nerdneilsfield/RSSHub-Gateway/internal/runtime"
+	"github.com/valyala/fasthttp"
 	"go.uber.org/zap"
 )
 
@@ -821,7 +823,7 @@ groups:
 	app := fiber.New()
 	app.All("/*", New(mgr, m, zap.NewNop()).Serve)
 
-	req := httptest.NewRequest(http.MethodGet, "http://localhost/short/ext?code=ABC", nil)
+	req := httptest.NewRequest(http.MethodGet, "http://localhost/short/ext?code=ABC&bar=2", nil)
 	resp, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("app test: %v", err)
@@ -830,8 +832,298 @@ groups:
 		t.Fatalf("expected 301, got %d", resp.StatusCode)
 	}
 	location := resp.Header.Get("Location")
-	if location != "https://example.com/rss?foo=1&code=ABC" {
+	if location != "https://example.com/rss?foo=1&bar=2" {
 		t.Fatalf("unexpected location: %s", location)
+	}
+}
+
+func TestShortRedirect302(t *testing.T) {
+	cfg := `server:
+  listen: ":0"
+  timeout_ms: 200
+
+gateway_auth:
+  enabled: true
+  access_key: "GATE"
+  accept_key: true
+  accept_code: false
+
+metrics:
+  enabled: false
+
+short:
+  enabled: true
+  path: "/short"
+  entries:
+    - name: "ext"
+      target: "https://example.com/rss?foo=1"
+      method: "302"
+
+routing:
+  default_group: "public"
+
+failover:
+  retry:
+    enabled: false
+    max_retries: 1
+  passive_eject:
+    enabled: false
+    fail_threshold: 3
+    base_eject_ms: 10000
+    max_eject_ms: 60000
+
+groups:
+  - name: "public"
+    backend: "rsshub"
+    strip_prefix: "/rsshub"
+    priority: 10
+    allow: ["/rsshub/"]
+    deny: []
+    lb:
+      policy: "wrr"
+    health:
+      active:
+        enabled: false
+    upstreams:
+      - url: "http://example.invalid"
+        weight: 1
+        access_key: "UP"
+`
+	path := writeTempConfig(t, cfg)
+
+	m := metrics.New()
+	mgr, err := runtime.NewManager(path, m, zap.NewNop())
+	if err != nil {
+		t.Fatalf("manager init: %v", err)
+	}
+
+	app := fiber.New()
+	app.All("/*", New(mgr, m, zap.NewNop()).Serve)
+
+	req := httptest.NewRequest(http.MethodGet, "http://localhost/short/ext?code=ABC&bar=2", nil)
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app test: %v", err)
+	}
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("expected 302, got %d", resp.StatusCode)
+	}
+	location := resp.Header.Get("Location")
+	if location != "https://example.com/rss?foo=1&bar=2" {
+		t.Fatalf("unexpected location: %s", location)
+	}
+}
+
+func TestShortProxyInternal(t *testing.T) {
+	upKey := "UPKEY"
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/latepost/4" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		expected := md5Hex(r.URL.Path + upKey)
+		if r.URL.Query().Get("code") != expected {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer up.Close()
+
+	cfg := `server:
+  listen: ":0"
+  timeout_ms: 200
+
+gateway_auth:
+  enabled: true
+  access_key: "GATE"
+  accept_key: true
+  accept_code: false
+
+metrics:
+  enabled: false
+
+short:
+  enabled: true
+  path: "/short"
+  entries:
+    - name: "latepost"
+      target: "/rsshub/latepost/4"
+      method: "proxy"
+
+routing:
+  default_group: "public"
+
+failover:
+  retry:
+    enabled: false
+    max_retries: 1
+  passive_eject:
+    enabled: false
+    fail_threshold: 3
+    base_eject_ms: 10000
+    max_eject_ms: 60000
+
+groups:
+  - name: "public"
+    backend: "rsshub"
+    strip_prefix: "/rsshub"
+    priority: 10
+    allow: ["/rsshub/"]
+    deny: []
+    lb:
+      policy: "wrr"
+    health:
+      active:
+        enabled: false
+    upstreams:
+      - url: "` + up.URL + `"
+        weight: 1
+        access_key: "` + upKey + `"
+`
+	path := writeTempConfig(t, cfg)
+
+	m := metrics.New()
+	mgr, err := runtime.NewManager(path, m, zap.NewNop())
+	if err != nil {
+		t.Fatalf("manager init: %v", err)
+	}
+
+	app := fiber.New()
+	app.All("/*", New(mgr, m, zap.NewNop()).Serve)
+
+	badReq := httptest.NewRequest(http.MethodGet, "http://localhost/short/latepost", nil)
+	badResp, err := app.Test(badReq)
+	if err != nil {
+		t.Fatalf("app test: %v", err)
+	}
+	if badResp.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", badResp.StatusCode)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "http://localhost/short/latepost?key=GATE", nil)
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app test: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, string(body))
+	}
+}
+
+func TestShortProxyExternal(t *testing.T) {
+	up := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/feed" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		query := r.URL.Query()
+		if query.Get("foo") != "1" || query.Get("bar") != "2" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		if query.Get("key") != "" || query.Get("code") != "" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer up.Close()
+
+	cfg := `server:
+  listen: ":0"
+  timeout_ms: 200
+
+gateway_auth:
+  enabled: true
+  access_key: "GATE"
+  accept_key: true
+  accept_code: false
+
+metrics:
+  enabled: false
+
+short:
+  enabled: true
+  path: "/short"
+  entries:
+    - name: "ext"
+      target: "` + up.URL + `/feed?foo=1"
+      method: "proxy"
+
+routing:
+  default_group: "public"
+
+failover:
+  retry:
+    enabled: false
+    max_retries: 1
+  passive_eject:
+    enabled: false
+    fail_threshold: 3
+    base_eject_ms: 10000
+    max_eject_ms: 60000
+
+groups:
+  - name: "public"
+    backend: "rsshub"
+    strip_prefix: "/rsshub"
+    priority: 10
+    allow: ["/rsshub/"]
+    deny: []
+    lb:
+      policy: "wrr"
+    health:
+      active:
+        enabled: false
+    upstreams:
+      - url: "http://example.invalid"
+        weight: 1
+        access_key: "UP"
+`
+	path := writeTempConfig(t, cfg)
+
+	m := metrics.New()
+	mgr, err := runtime.NewManager(path, m, zap.NewNop())
+	if err != nil {
+		t.Fatalf("manager init: %v", err)
+	}
+
+	p := New(mgr, m, zap.NewNop())
+	p.client.TLSConfig = &tls.Config{InsecureSkipVerify: true}
+
+	app := fiber.New()
+	app.All("/*", p.Serve)
+
+	req := httptest.NewRequest(http.MethodGet, "http://localhost/short/ext?key=BAD&bar=2", nil)
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app test: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, string(body))
+	}
+}
+
+func TestBuildExternalURLStripsKeyCode(t *testing.T) {
+	args := fasthttp.Args{}
+	args.Set("foo", "1")
+	args.Set("key", "K")
+	args.Set("code", "C")
+
+	uri, err := buildExternalURL("https://example.com/rss?bar=2", &args)
+	if err != nil {
+		t.Fatalf("build external url: %v", err)
+	}
+	if strings.Contains(uri, "key=") || strings.Contains(uri, "code=") {
+		t.Fatalf("expected key/code stripped: %s", uri)
+	}
+	if !strings.Contains(uri, "bar=2") || !strings.Contains(uri, "foo=1") {
+		t.Fatalf("expected merged query: %s", uri)
 	}
 }
 

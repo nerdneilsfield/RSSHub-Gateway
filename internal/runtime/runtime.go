@@ -96,9 +96,13 @@ func Build(cfg *config.Config, m *metrics.Metrics, logger *zap.Logger, store cac
 		})
 	}
 
-	shortEntries := make(map[string]string, len(cfg.Short.Entries))
+	shortEntries := make(map[string]short.Entry, len(cfg.Short.Entries))
 	for _, entry := range cfg.Short.Entries {
-		shortEntries[entry.Name] = entry.Target
+		shortEntries[entry.Name] = short.Entry{
+			Target:   entry.Target,
+			Method:   entry.Method,
+			Internal: short.IsInternalTarget(entry.Target),
+		}
 	}
 
 	rt := &Runtime{

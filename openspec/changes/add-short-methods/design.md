@@ -11,7 +11,7 @@ Short subscriptions currently resolve to a 301 Location. We need more flexible b
 
 ## Decisions
 - Entry schema: add `method` with values `301`, `302`, or `proxy` (default `301`).
-- Redirects: preserve full original query string (including key/code).
+- Redirects: preserve full original query string for internal targets; strip key/code for external targets.
 - Proxy internal: if target starts with `/rsshub` or `/upvote`, treat as a normal gateway request to that path; keep key/code in query for auth.
 - Proxy external: for `https://` targets, forward the request directly and remove key/code from query before proxying.
 - Short requests with proxy method do not re-enter short resolution (avoid loops).
