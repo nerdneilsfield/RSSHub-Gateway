@@ -2,29 +2,41 @@
 
 <cite>
 **本文档中引用的文件**  
+- [wiki.go](file://internal/wiki/wiki.go)
+- [proxy.go](file://internal/proxy/proxy.go)
+- [config.example.yaml](file://config.example.yaml)
 - [home.go](file://internal/home/home.go)
 - [short.go](file://internal/short/short.go)
 - [metrics.go](file://internal/metrics/metrics.go)
 - [pprof.go](file://internal/pprof/pprof.go)
-- [proxy.go](file://internal/proxy/proxy.go)
-- [config.go](file://internal/config/config.go)
 - [README.md](file://README.md)
 </cite>
 
-## 目录
+## 更新摘要
+**已做更改**  
+- 在“核心API端点”部分添加了新的 `/wiki` 和 `/wiki/` 端点描述
+- 更新了“核心API端点”部分的流程图，以包含新的wiki处理路径
+- 在“目录”中添加了新的“/wiki端点”条目
+- 添加了关于 `/wiki` 端点的完整新章节
+- 更新了“介绍”部分的Section sources以包含新分析的文件
+
+### 目录
 1. [介绍](#介绍)
 2. [核心API端点](#核心api端点)
 3. [/主页端点](#主页端点)
 4. [/short/*短链接端点](#short短链接端点)
 5. [/metrics指标端点](#metrics指标端点)
 6. [/debug/pprof调试端点](#debugpprof调试端点)
-7. [使用示例](#使用示例)
+7. [/wiki端点](#wiki端点)
+8. [使用示例](#使用示例)
 
 ## 介绍
 RSSHub-Gateway是一个为RSSHub和Upvote RSS服务设计的网关，提供路由、认证、健康检查和可观测性功能。本参考文档详细描述了网关暴露的所有HTTP API端点，包括其URL模式、HTTP方法、请求参数、响应格式、状态码及用途。文档还说明了/metrics端点与Prometheus的集成方式，列举了所有暴露的指标名称和含义，并描述了/pprof各子端点的功能和使用方法。
 
 **Section sources**
 - [README.md](file://README.md#L1-L361)
+- [wiki.go](file://internal/wiki/wiki.go#L1-L152)
+- [proxy.go](file://internal/proxy/proxy.go#L72-L85)
 
 ## 核心API端点
 RSSHub-Gateway暴露了多个核心HTTP API端点，用于提供服务功能、监控和调试。这些端点包括：
@@ -32,6 +44,7 @@ RSSHub-Gateway暴露了多个核心HTTP API端点，用于提供服务功能、�
 - `/short/*`：短链接重定向端点
 - `/metrics`：Prometheus指标端点
 - `/debug/pprof`：Go语言性能分析端点
+- `/wiki` 和 `/wiki/`：项目文档维基端点
 
 这些端点在网关的请求处理流程中具有最高优先级，不会被代理到上游服务。它们由网关直接处理，为开发者和运维人员提供必要的服务信息、监控数据和调试工具。
 
@@ -43,11 +56,14 @@ PathCheck --> |/| Home
 PathCheck --> |/short/*| Short
 PathCheck --> |/metrics| Metrics
 PathCheck --> |/debug/pprof*| Pprof
+PathCheck --> |/wiki| Wiki
+PathCheck --> |/wiki/*| Wiki
 PathCheck --> |Other| Proxy
 Home --> |Render README| Response
 Short --> |301 Redirect| Target
 Metrics --> |Prometheus Data| Response
 Pprof --> |Profile Data| Response
+Wiki --> |Render Wiki| Response
 Proxy --> |Forward to Upstream| Upstream
 ```
 
@@ -57,6 +73,7 @@ Proxy --> |Forward to Upstream| Upstream
 - [short.go](file://internal/short/short.go#L19-L35)
 - [metrics.go](file://internal/metrics/metrics.go#L113-L122)
 - [pprof.go](file://internal/pprof/pprof.go#L33-L62)
+- [wiki.go](file://internal/wiki/wiki.go#L27-L70)
 
 ## /主页端点
 `/`端点是RSSHub-Gateway的主页，用于渲染项目的README文档。该端点支持多语言，可以根据请求参数或路径选择显示英文或中文版本。
@@ -216,6 +233,48 @@ go tool pprof http://<gateway-host>:<port>/debug/pprof/heap?accesskey=<PPROF_ACC
 - [config.go](file://internal/config/config.go#L44-L48)
 - [README.md](file://README.md#L305-L311)
 
+## /wiki端点
+`/wiki`和`/wiki/`端点提供项目文档维基功能，用于展示项目的技术文档和使用指南。该端点基于Qoder RepoWiki内容，从`.qoder/repowiki/zh`目录加载中文文档。
+
+### URL模式与HTTP方法
+- **URL模式**: `/wiki`, `/wiki/*`
+- **HTTP方法**: GET
+- **用途**: 显示项目技术文档和维基内容
+
+### 请求参数
+此端点不接受特定参数，但会保留原始请求中的查询参数。
+
+### 响应格式
+返回HTML文档，包含渲染后的维基内容，支持Mermaid图表和KaTeX数学公式。文档中的`file://`链接会被重写为指向GitHub仓库的永久链接（使用构建时的git commit哈希）。
+
+### 状态码
+- `200 OK`: 成功渲染并返回维基页面
+- `301 Moved Permanently`: 从`/wiki`重定向到`/wiki/`
+- `404 Not Found`: 请求的维基页面不存在
+- `500 Internal Server Error`: 维基内容加载或渲染失败
+
+### 功能说明
+维基端点通过`go-embed-qorder-wiki`库实现，具有以下特性：
+- 自动从`.qoder/repowiki/zh`目录加载维基内容
+- 使用CDN加载Mermaid和KaTeX资源（`https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js`和`https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css`）
+- 将文档中的`file://`链接重写为指向`https://github.com/nerdneilsfield/RSSHub-Gateway/blob/<gitCommit>/...`的GitHub链接
+- 在Docker镜像和GoReleaser构建中包含维基资产，确保运行时可用
+
+当访问`/wiki`时，网关会自动重定向到`/wiki/`以确保正确的路径处理。维基内容的首页（home）按以下优先级确定：
+1. `主页.md`
+2. `README.md`
+3. `README_zh.md`
+4. `README_ZH.md`
+5. `快速开始.md`
+6. 任意其他`.md`文件
+
+该端点已在`gateway_auth.bypass_paths`中配置为认证绕行路径，因此访问维基内容无需提供访问密钥。
+
+**Section sources**
+- [wiki.go](file://internal/wiki/wiki.go#L16-L25)
+- [proxy.go](file://internal/proxy/proxy.go#L72-L85)
+- [config.example.yaml](file://config.example.yaml#L28-L34)
+
 ## 使用示例
 以下是一些常用的curl命令示例，帮助开发者和运维人员测试和监控服务状态。
 
@@ -259,6 +318,18 @@ curl -o heap.out "http://localhost:8080/debug/pprof/heap?accesskey=PPROF_KEY_123
 
 # 获取goroutine分析数据
 curl "http://localhost:8080/debug/pprof/goroutine?debug=1&accesskey=PPROF_KEY_123"
+```
+
+### 测试维基访问
+```bash
+# 访问维基首页（会重定向到/wiki/）
+curl -i http://localhost:8080/wiki
+
+# 访问维基内容
+curl -i http://localhost:8080/wiki/
+
+# 访问特定维基页面
+curl -i http://localhost:8080/wiki/安装指南.md
 ```
 
 ### 健康检查
