@@ -2,7 +2,7 @@ projectname := "rsshub-gateway"
 version := `git describe --abbrev=0 --tags 2>/dev/null || echo dev`
 commit := `git rev-parse --short HEAD 2>/dev/null || echo unknown`
 build_time := `date -u +%Y-%m-%dT%H:%M:%SZ`
-ldflags := "-s -w -X main.version={{version}} -X main.buildTime={{build_time}} -X main.gitCommit={{commit}}"
+ldflags := "-s -w -X main.version=" + version + " -X main.buildTime=" + build_time + " -X main.gitCommit=" + commit
 
 # 列出所有可用的命令
 default:
