@@ -407,6 +407,7 @@ func mergeQueryArgs(targetQuery string, original *fasthttp.Args) *fasthttp.Args 
 func (p *Proxy) proxyExternal(c *fiber.Ctx, rt *runtime.Runtime, target string, args *fasthttp.Args, start time.Time, method string, path string) error {
 	uri, err := buildExternalURL(target, args)
 	if err != nil {
+		p.logExternalError(start, method, path, target, http.StatusBadGateway, "external", err)
 		p.logAccess(start, method, path, "short-external", "short", http.StatusBadGateway, 0, nil, "external", err)
 		return c.SendStatus(http.StatusBadGateway)
 	}
@@ -414,9 +415,13 @@ func (p *Proxy) proxyExternal(c *fiber.Ctx, rt *runtime.Runtime, target string, 
 	resp, errType, err := p.forwardExternal(c, uri, timeout)
 	status := resp.status
 	if err != nil {
+		p.logExternalError(start, method, path, uri, status, errType, err)
 		p.recordRequestMetrics("short-external", "short", method, status, start)
 		p.logAccess(start, method, path, "short-external", "short", status, 0, nil, errType, err)
 		return c.SendStatus(status)
+	}
+	if status >= http.StatusBadRequest {
+		p.logExternalError(start, method, path, uri, status, "upstream", nil)
 	}
 	p.recordRequestMetrics("short-external", "short", method, status, start)
 	p.logAccess(start, method, path, "short-external", "short", status, 0, nil, "", nil)
@@ -579,4 +584,25 @@ func (p *Proxy) logAccess(start time.Time, method string, path string, group str
 		fields = append(fields, zap.Error(err))
 	}
 	p.logger.Info("access", fields...)
+}
+
+func (p *Proxy) logExternalError(start time.Time, method string, path string, target string, status int, errType string, err error) {
+	if p.logger == nil {
+		return
+	}
+	fields := []zap.Field{
+		zap.Time("ts", time.Now()),
+		zap.String("method", method),
+		zap.String("path", path),
+		zap.String("target", target),
+		zap.Int("status", status),
+		zap.Int("duration_ms", int(time.Since(start).Milliseconds())),
+	}
+	if errType != "" {
+		fields = append(fields, zap.String("err_type", errType))
+	}
+	if err != nil {
+		fields = append(fields, zap.Error(err))
+	}
+	p.logger.Warn("short external error", fields...)
 }
