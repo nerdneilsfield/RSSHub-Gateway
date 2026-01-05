@@ -1,12 +1,14 @@
 package proxy
 
 import (
+	"crypto/tls"
 	"errors"
 	"net"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -28,6 +30,8 @@ type Proxy struct {
 	logger  *zap.Logger
 	client  *fasthttp.Client
 	home    *home.Renderer
+
+	externalClients sync.Map
 }
 
 func New(manager *runtime.Manager, m *metrics.Metrics, logger *zap.Logger) *Proxy {
@@ -435,8 +439,12 @@ func (p *Proxy) forwardExternal(c *fiber.Ctx, uri string, timeout time.Duration)
 	if err == nil && parsed.Host != "" {
 		req.Header.SetHost(parsed.Host)
 	}
+	if len(req.Header.UserAgent()) == 0 {
+		req.Header.SetUserAgent("RSSHub-Gateway/short")
+	}
 
-	err = p.client.DoTimeout(req, res, timeout)
+	client := p.externalClient(parsed)
+	err = client.DoTimeout(req, res, timeout)
 	if err != nil {
 		errType := classifyError(err)
 		resp.status = statusFromError(errType)
@@ -454,6 +462,28 @@ func (p *Proxy) forwardExternal(c *fiber.Ctx, uri string, timeout time.Duration)
 	})
 
 	return resp, "", nil
+}
+
+func (p *Proxy) externalClient(target *url.URL) *fasthttp.Client {
+	if target == nil {
+		return p.client
+	}
+	key := target.Scheme + "://" + target.Host
+	if key == "://" {
+		return p.client
+	}
+	if client, ok := p.externalClients.Load(key); ok {
+		return client.(*fasthttp.Client)
+	}
+	created := &fasthttp.Client{}
+	if target.Scheme == "https" {
+		serverName := target.Hostname()
+		if serverName != "" {
+			created.TLSConfig = &tls.Config{ServerName: serverName}
+		}
+	}
+	client, _ := p.externalClients.LoadOrStore(key, created)
+	return client.(*fasthttp.Client)
 }
 
 func buildExternalURL(target string, args *fasthttp.Args) (string, error) {

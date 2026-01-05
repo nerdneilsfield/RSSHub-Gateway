@@ -5,8 +5,10 @@ import (
 	"crypto/tls"
 	"encoding/hex"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strings"
 	"sync/atomic"
@@ -1014,20 +1016,23 @@ groups:
 }
 
 func TestShortProxyExternal(t *testing.T) {
+	type capture struct {
+		path  string
+		ua    string
+		sni   string
+		query url.Values
+	}
+	got := make(chan capture, 1)
 	up := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/feed" {
-			w.WriteHeader(http.StatusBadRequest)
-			return
+		data := capture{
+			path:  r.URL.Path,
+			ua:    r.Header.Get("User-Agent"),
+			query: r.URL.Query(),
 		}
-		query := r.URL.Query()
-		if query.Get("foo") != "1" || query.Get("bar") != "2" {
-			w.WriteHeader(http.StatusBadRequest)
-			return
+		if r.TLS != nil {
+			data.sni = r.TLS.ServerName
 		}
-		if query.Get("key") != "" || query.Get("code") != "" {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
+		got <- data
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	}))
@@ -1093,12 +1098,20 @@ groups:
 	}
 
 	p := New(mgr, m, zap.NewNop())
-	p.client.TLSConfig = &tls.Config{InsecureSkipVerify: true}
+	target, err := url.Parse(up.URL)
+	if err != nil {
+		t.Fatalf("parse url: %v", err)
+	}
+	expectedHost := target.Hostname()
+	p.externalClients.Store(target.Scheme+"://"+target.Host, &fasthttp.Client{
+		TLSConfig: &tls.Config{InsecureSkipVerify: true, ServerName: expectedHost},
+	})
 
 	app := fiber.New()
 	app.All("/*", p.Serve)
 
 	req := httptest.NewRequest(http.MethodGet, "http://localhost/short/ext?key=BAD&bar=2", nil)
+	req.Header.Del("User-Agent")
 	resp, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("app test: %v", err)
@@ -1106,6 +1119,26 @@ groups:
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, string(body))
+	}
+	select {
+	case data := <-got:
+		if data.path != "/feed" {
+			t.Fatalf("unexpected path: %s", data.path)
+		}
+		if data.ua != "RSSHub-Gateway/short" {
+			t.Fatalf("unexpected user-agent: %s", data.ua)
+		}
+		if data.sni == "" && net.ParseIP(expectedHost) == nil {
+			t.Fatalf("expected sni to be set")
+		}
+		if data.query.Get("foo") != "1" || data.query.Get("bar") != "2" {
+			t.Fatalf("unexpected query: %v", data.query.Encode())
+		}
+		if data.query.Get("key") != "" || data.query.Get("code") != "" {
+			t.Fatalf("expected key/code stripped: %v", data.query.Encode())
+		}
+	default:
+		t.Fatalf("expected upstream to receive request")
 	}
 }
 
