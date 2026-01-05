@@ -68,6 +68,8 @@ dockers_v2:
       - linux/arm64
     extra_files:
       - "config.example.yaml"
+      - "README.md"
+      - "README_zh.md"
     labels:
       "io.artifacthub.package.readme-url": "https://raw.githubusercontent.com/nerdneilsfield/RSSHub-Gateway/master/README.md"
       "io.artifacthub.package.maintainers": "[{\"name\":\"dengqqi\",\"email\":\"dengqqi935@gmail.com\"}]"
