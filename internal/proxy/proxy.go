@@ -69,8 +69,20 @@ func (p *Proxy) Serve(c *fiber.Ctx) error {
 			return p.home.Serve(c)
 		}
 	}
-	if p.wiki != nil && matchesPathPrefix(path, p.wikiURL) {
-		return p.wiki(c)
+	if p.wiki != nil {
+		if path == p.wikiURL {
+			target := p.wikiURL + "/"
+			if query := c.Context().QueryArgs().String(); query != "" {
+				target = target + "?" + query
+			}
+			return c.Redirect(target, http.StatusMovedPermanently)
+		}
+		if strings.HasPrefix(path, "/_assets/") {
+			return p.wiki(c)
+		}
+		if matchesPathPrefix(path, p.wikiURL) {
+			return p.wiki(c)
+		}
 	}
 	if rt.Metrics.Enabled && method == fiber.MethodGet && path == rt.Metrics.Path {
 		if p.metrics == nil {
