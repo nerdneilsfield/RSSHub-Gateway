@@ -40,7 +40,10 @@ Request flow stays simple: authenticate, route by prefix, pick upstream, proxy.
 flowchart LR
     Client -->|HTTP| Gateway
     Gateway -->|/short/*| Short
-    Short -->|301| Target
+    Short -->|301/302| Redirect
+    Redirect --> Target
+    Short -->|proxy internal| Router
+    Short -->|proxy external| External
     Gateway --> Router
     Router --> Group
     Group --> LB
@@ -57,12 +60,18 @@ sequenceDiagram
     participant R as Router
     participant LB as Load Balancer
     participant U as Upstream
+    participant E as External
 
-    C->>G: GET /short/latepost?key=...
-    alt short hit
-        G->>G: Resolve short + passthrough query
-        G-->>C: 301 Location: /rsshub/latepost/4?key=...
-    else proxy
+    C->>G: GET /short/fearnation?key=...
+    alt short redirect (external)
+        G->>G: Resolve short + strip key/code
+        G-->>C: 301 Location: https://fearnation.club/rss/?...
+    else short proxy (external)
+        G->>G: Resolve short + strip key/code
+        G->>E: Proxy request (UA + SNI)
+        E-->>G: Response
+        G-->>C: Response
+    else normal proxy
         C->>G: GET /rsshub/path?key=...
         G->>G: Validate key/code
         G->>R: Select group by prefix

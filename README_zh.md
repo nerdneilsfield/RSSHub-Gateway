@@ -44,7 +44,10 @@
 flowchart LR
     Client -->|HTTP| Gateway
     Gateway -->|/short/*| Short
-    Short -->|301| Target
+    Short -->|301/302| Redirect
+    Redirect --> Target
+    Short -->|proxy internal| Router
+    Short -->|proxy external| External
     Gateway --> Router
     Router --> Group
     Group --> LB
@@ -61,11 +64,17 @@ sequenceDiagram
     participant R as Router
     participant LB as Load Balancer
     participant U as Upstream
+    participant E as External
 
-    C->>G: GET /short/latepost?key=...
-    alt short 命中
-        G->>G: 解析 short + 透传 query
-        G-->>C: 301 Location: /rsshub/latepost/4?key=...
+    C->>G: GET /short/fearnation?key=...
+    alt short 重定向（外部）
+        G->>G: 解析 short + 去除 key/code
+        G-->>C: 301 Location: https://fearnation.club/rss/?...
+    else short 代理（外部）
+        G->>G: 解析 short + 去除 key/code
+        G->>E: 代理请求（UA + SNI）
+        E-->>G: 响应
+        G-->>C: 返回
     else 业务代理
         C->>G: GET /rsshub/path?key=...
         G->>G: 校验 key/code
