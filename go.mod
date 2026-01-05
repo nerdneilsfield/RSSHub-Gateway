@@ -4,6 +4,7 @@ go 1.23.2
 
 require (
 	github.com/gofiber/fiber/v2 v2.52.2
+	github.com/gomarkdown/markdown v0.0.0-20250311123330-531bef5e742b
 	github.com/prometheus/client_golang v1.19.0
 	github.com/spf13/cobra v1.8.1
 	github.com/valyala/fasthttp v1.52.0

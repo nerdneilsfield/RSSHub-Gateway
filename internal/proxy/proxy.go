@@ -10,6 +10,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/nerdneilsfield/RSSHub-Gateway/internal/auth"
+	"github.com/nerdneilsfield/RSSHub-Gateway/internal/home"
 	"github.com/nerdneilsfield/RSSHub-Gateway/internal/metrics"
 	pprofhandler "github.com/nerdneilsfield/RSSHub-Gateway/internal/pprof"
 	"github.com/nerdneilsfield/RSSHub-Gateway/internal/runtime"
@@ -24,6 +25,7 @@ type Proxy struct {
 	metrics *metrics.Metrics
 	logger  *zap.Logger
 	client  *fasthttp.Client
+	home    *home.Renderer
 }
 
 func New(manager *runtime.Manager, m *metrics.Metrics, logger *zap.Logger) *Proxy {
@@ -32,6 +34,7 @@ func New(manager *runtime.Manager, m *metrics.Metrics, logger *zap.Logger) *Prox
 		metrics: m,
 		logger:  logger,
 		client:  &fasthttp.Client{},
+		home:    home.New("README.md", "README_zh.md", logger),
 	}
 }
 
@@ -44,6 +47,11 @@ func (p *Proxy) Serve(c *fiber.Ctx) error {
 
 	path := c.Path()
 	method := string(c.Context().Method())
+	if method == fiber.MethodGet && p.home != nil {
+		if path == "/" || path == "/zh" || path == "/zh/" || path == "/en" || path == "/en/" {
+			return p.home.Serve(c)
+		}
+	}
 	if rt.Metrics.Enabled && method == fiber.MethodGet && path == rt.Metrics.Path {
 		if p.metrics == nil {
 			return c.SendStatus(http.StatusNotFound)

@@ -20,6 +20,7 @@ At a glance:
 - Multi-backend routing: `/rsshub/` for RSSHub, `/upvote/` for Upvote RSS
 - Prefix-based grouping with longest-match selection and per-group LB
 - Short subscriptions: `/short/{name}` 301 redirect with query passthrough
+- Homepage: `/` renders README.md (use `/?lang=zh` or `/zh` for Chinese)
 - Gateway auth: `?key=` or `?code=md5(path+key)` + RSSHub code injection
 - Active health checks + passive eject + retry + fallback
 - Prometheus metrics, pprof, JSON access/event logs
