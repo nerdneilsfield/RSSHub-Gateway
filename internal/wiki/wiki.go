@@ -36,11 +36,12 @@ func NewHandler(root string, gitCommit string, repoURL string, logger *zap.Logge
 	if resolved == "" {
 		return nil, mount, fmt.Errorf("wiki root not found: %s", root)
 	}
+	home := resolveWikiHome(resolved, defaultContentDir, logger)
 	cfg := repowiki.Config{
 		FS:         os.DirFS(resolved),
 		Root:       ".",
 		ContentDir: defaultContentDir,
-		Home:       defaultWikiHome,
+		Home:       home,
 		Git: repowiki.GitSource{
 			RepoURL: repoURL,
 			Ref:     gitCommit,
@@ -67,6 +68,41 @@ func NewHandler(root string, gitCommit string, repoURL string, logger *zap.Logge
 		return nil, mount, fmt.Errorf("init wiki handler: %w", err)
 	}
 	return fiberadapter.Wrap(handler, mount), mount, nil
+}
+
+func resolveWikiHome(root string, contentDir string, logger *zap.Logger) string {
+	candidates := []string{
+		defaultWikiHome,
+		"README.md",
+		"README_zh.md",
+		"README_ZH.md",
+		"快速开始.md",
+	}
+	for _, name := range candidates {
+		if fileExists(filepath.Join(root, contentDir, name)) {
+			if name != defaultWikiHome && logger != nil {
+				logger.Info("wiki home fallback", zap.String("home", name))
+			}
+			return name
+		}
+	}
+	entries, err := os.ReadDir(filepath.Join(root, contentDir))
+	if err != nil {
+		return defaultWikiHome
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if strings.HasSuffix(name, ".md") {
+			if logger != nil {
+				logger.Info("wiki home fallback", zap.String("home", name))
+			}
+			return name
+		}
+	}
+	return defaultWikiHome
 }
 
 func resolveWikiRoot(root string) string {
@@ -104,4 +140,12 @@ func dirExists(path string) bool {
 		return false
 	}
 	return info.IsDir()
+}
+
+func fileExists(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return !info.IsDir()
 }
