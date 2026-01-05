@@ -12,6 +12,9 @@ func ValidateGateway(cfg config.GatewayAuthConfig, path string, args *fasthttp.A
 	if !cfg.Enabled {
 		return true
 	}
+	if isBypassPath(cfg.BypassPaths, path) {
+		return true
+	}
 	key := string(args.Peek("key"))
 	code := string(args.Peek("code"))
 	if cfg.AcceptKey && key != "" && key == cfg.AccessKey {
@@ -42,4 +45,13 @@ func RewriteUpstreamQuery(args *fasthttp.Args, path string, upstreamKey string, 
 func md5Hex(input string) string {
 	sum := md5.Sum([]byte(input))
 	return hex.EncodeToString(sum[:])
+}
+
+func isBypassPath(paths []string, path string) bool {
+	for _, candidate := range paths {
+		if candidate == path {
+			return true
+		}
+	}
+	return false
 }

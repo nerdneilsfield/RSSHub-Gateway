@@ -26,10 +26,11 @@ type ServerConfig struct {
 }
 
 type GatewayAuthConfig struct {
-	Enabled    bool   `yaml:"enabled"`
-	AccessKey  string `yaml:"access_key"`
-	AcceptKey  bool   `yaml:"accept_key"`
-	AcceptCode bool   `yaml:"accept_code"`
+	Enabled     bool     `yaml:"enabled"`
+	AccessKey   string   `yaml:"access_key"`
+	AcceptKey   bool     `yaml:"accept_key"`
+	AcceptCode  bool     `yaml:"accept_code"`
+	BypassPaths []string `yaml:"bypass_paths"`
 }
 
 type MetricsConfig struct {
@@ -191,6 +192,7 @@ func (c *Config) normalize() {
 	c.Metrics.Path = strings.TrimSpace(c.Metrics.Path)
 	c.Pprof.Path = strings.TrimSpace(c.Pprof.Path)
 	c.Short.Path = normalizePathPrefix(c.Short.Path)
+	c.GatewayAuth.BypassPaths = normalizePaths(c.GatewayAuth.BypassPaths)
 	for i := range c.Short.Entries {
 		c.Short.Entries[i].Name = strings.TrimSpace(c.Short.Entries[i].Name)
 		c.Short.Entries[i].Target = strings.TrimSpace(c.Short.Entries[i].Target)
@@ -233,6 +235,23 @@ func normalizePrefixes(values []string) []string {
 		if !strings.HasPrefix(v, "/") {
 			v = "/" + v
 		}
+		out = append(out, v)
+	}
+	return out
+}
+
+func normalizePaths(values []string) []string {
+	out := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, v := range values {
+		v = normalizePathPrefix(v)
+		if v == "" {
+			continue
+		}
+		if _, ok := seen[v]; ok {
+			continue
+		}
+		seen[v] = struct{}{}
 		out = append(out, v)
 	}
 	return out

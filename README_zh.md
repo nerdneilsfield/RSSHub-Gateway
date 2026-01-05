@@ -122,6 +122,7 @@ docker run --rm -p 8080:8080 \
 - `backend` 只能是 `rsshub` 或 `upvote`（默认 `rsshub`）。
 - `strip_prefix` 用于转发前剥离服务前缀（如 `/rsshub`、`/upvote`）。
 - `gateway_auth` 需要 `access_key`，且 `accept_key`/`accept_code` 至少开一个。
+- `gateway_auth.bypass_paths` 可跳过网关鉴权（精确路径匹配，仍会转发/注入 code）。
 - upstream `access_key` 仅 RSSHub 用于 code 注入和健康检查 `?key=`。
 - 健康检查使用 `path`、`interval_ms`、`timeout_ms`、`retries`。
 - `failover.passive_eject` 要求 `base_eject_ms <= max_eject_ms`。
@@ -143,6 +144,11 @@ gateway_auth:
   access_key: "ILoveRSSHub"
   accept_key: true
   accept_code: true
+  bypass_paths:
+    - "/favicon.ico"
+    - "/logo.png"
+    - "/robots.txt"
+    - "/manifest.json"
 
 metrics:
   enabled: true

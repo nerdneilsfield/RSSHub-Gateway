@@ -23,6 +23,13 @@ gateway_auth:
   # EN: accept ?code=md5(path+key)
   # 中文: 支持 ?code=md5(path+key)
   accept_code: true
+  # EN: gateway auth bypass paths (no key needed)
+  # 中文: 网关鉴权白名单路径（无需 key）
+  bypass_paths:
+    - "/favicon.ico"
+    - "/logo.png"
+    - "/robots.txt"
+    - "/manifest.json"
 
 # EN: Prometheus metrics
 # 中文: Prometheus 指标

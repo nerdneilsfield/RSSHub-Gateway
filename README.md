@@ -118,6 +118,7 @@ The full schema lives in `config.example.yaml`.
 - `backend` must be `rsshub` or `upvote` (defaults to `rsshub`).
 - `strip_prefix` removes service prefixes like `/rsshub` or `/upvote` before proxying.
 - `gateway_auth` needs `access_key` and at least one of `accept_key`/`accept_code`.
+- `gateway_auth.bypass_paths` skips gateway auth for exact paths (still proxied/code-injected).
 - Upstream `access_key` is required for RSSHub code injection and healthcheck `?key=`.
 - Health check uses `path`, `interval_ms`, `timeout_ms`, `retries`.
 - `failover.passive_eject` requires `base_eject_ms <= max_eject_ms`.
@@ -139,6 +140,11 @@ gateway_auth:
   access_key: "ILoveRSSHub"
   accept_key: true
   accept_code: true
+  bypass_paths:
+    - "/favicon.ico"
+    - "/logo.png"
+    - "/robots.txt"
+    - "/manifest.json"
 
 metrics:
   enabled: true

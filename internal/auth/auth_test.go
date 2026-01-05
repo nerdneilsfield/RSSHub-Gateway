@@ -28,6 +28,22 @@ func TestValidateGatewayCode(t *testing.T) {
 	}
 }
 
+func TestValidateGatewayBypassPath(t *testing.T) {
+	cfg := config.GatewayAuthConfig{
+		Enabled:     true,
+		AccessKey:   "KEY",
+		AcceptKey:   true,
+		BypassPaths: []string{"/favicon.ico"},
+	}
+	args := fasthttp.Args{}
+	if !ValidateGateway(cfg, "/favicon.ico", &args) {
+		t.Fatalf("expected bypass path to pass")
+	}
+	if ValidateGateway(cfg, "/robots.txt", &args) {
+		t.Fatalf("expected non-bypass path to fail without key")
+	}
+}
+
 func TestRewriteUpstreamQueryInjectCode(t *testing.T) {
 	args := fasthttp.Args{}
 	args.Set("key", "BAD")
