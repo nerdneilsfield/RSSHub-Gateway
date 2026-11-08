@@ -95,6 +95,19 @@ sequenceDiagram
     end
 ```
 
+## 通过 Homebrew / Scoop 安装
+
+```bash
+# macOS / Linux
+brew install --cask nerdneilsfield/apps/rsshub-gateway
+```
+
+```powershell
+# Windows
+scoop bucket add nerdneilsfield https://github.com/nerdneilsfield/homebrew-apps
+scoop install nerdneilsfield/rsshub-gateway
+```
+
 ## 60 秒上手
 
 本地构建并用示例配置启动：
